@@ -238,7 +238,7 @@ Packer 템플릿은 실행 결과물이 아니라 IaC 소스이므로 프로젝�
 └── secrets/     # vmrest·Ansible 비밀값, 권한 0700/0600
 ```
 
-(갱신) 실제 구성은 위 트리를 따르되 다음을 추가했다: `scripts/lib/`(공통 함수, 버전 핀), `scripts/vmrest-start.sh`, `scripts/fetch-rocky-iso.sh`, `scripts/tf.sh`, `scripts/cluster-apply.sh`, `scripts/golden-build.sh`, `scripts/render-inventory.sh`, `infra/packer/plugins.sha256`, `infra/ansible/ansible.cfg`·`requirements.txt`. XDG 쪽에는 `ansible-venv/`, `~/.local/state/k3s-vmware-lab/{logs,backups,terraform/backups}`가 있다. Provider 검증에만 쓴 `smoke/` 기준 VM과 데이터는 Rocky 전환 때 삭제했다(13.11). 비밀값 디렉터리는 0700, 파일과 tfstate는 0600이다.
+(갱신) 실제 구성은 위 트리를 따르되 다음을 추가했다: 전체 실행 진입점 `scripts/entry.sh`, `scripts/lib/`(공통 함수, 버전 핀), `scripts/vmrest-start.sh`, `scripts/fetch-rocky-iso.sh`, `scripts/tf.sh`, `scripts/cluster-apply.sh`, `scripts/golden-build.sh`, `scripts/render-inventory.sh`, `infra/packer/plugins.sha256`, `infra/ansible/ansible.cfg`·`requirements.txt`. XDG 쪽에는 `ansible-venv/`, `~/.local/state/k3s-vmware-lab/{logs,backups,terraform/backups}`가 있다. Provider 검증에만 쓴 `smoke/` 기준 VM과 데이터는 Rocky 전환 때 삭제했다(13.11). 비밀값 디렉터리는 0700, 파일과 tfstate는 0600이다.
 
 이렇게 분리하면 Git 저장소를 삭제하거나 다른 장비로 clone해도 대용량 VM과 로컬 상태가 섞이지 않는다. Terraform과 Packer에는 위 경로를 변수로 전달하고 코드에 사용자별 절대 경로를 반복해서 하드코딩하지 않는다.
 
@@ -491,6 +491,7 @@ ansible-playbook playbooks/k3s.yml         # 2회 실행
 - 소스에서는 이전 자동설치 템플릿과 Packer HCL을 삭제하고 Rocky Kickstart·Packer HCL·ISO 검증 스크립트로 대체했다. Terraform 기본 골든 이름, provider 스모크 테스트 기준 이름, README, 인계서와 다이어그램도 같은 기준으로 바꿨다.
 - 최종 `scripts/preflight.sh`는 `0 FAIL, 0 WARN`, Terraform 재계획은 exit 0 `No changes`, 골든 이미지 SHA-256은 복제 뒤에도 불변이었다.
 - 셸 `bash -n`, Packer `fmt -check`·필수 변수 포함 `validate`, 렌더링한 Kickstart의 `ksvalidator -v RHEL9`, Terraform `fmt -check`·`validate`, 모든 Ansible playbook `--syntax-check`도 통과했다.
+- 전체 흐름은 `scripts/entry.sh` 한 명령으로 9단계를 순서대로 실행하도록 묶었다. 각 단계는 실행 뒤 소요 시간을 기록하고 마지막에 표와 합계를 출력한다. README의 신규 구축 기준은 ISO 최초 다운로드를 제외한 **16분**이며 이 중 골든 이미지 빌드가 11분으로 가장 길다. 정상 가동 상태 재실행 실측은 ISO 확인 38초, preflight 50초, SSH 확인 6초, OS+K3s 20초를 포함해 총 1분 56초였고 Terraform `No changes`, Ansible `changed=0`이었다. 사용자 시나리오 이후는 쉬운 용어 중심으로 재구성했다.
 
 ## 14. 남은 위험과 후속 조치
 

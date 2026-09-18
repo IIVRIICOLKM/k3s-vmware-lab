@@ -25,34 +25,77 @@ VENV="$LAB_DATA_DIR/ansible-venv"
 
 STEPS=9
 step=0
+declare -a timing_steps=()
+declare -a timing_names=()
+declare -a timing_seconds=()
+
+duration() {
+  local total="$1"
+  if ((total >= 60)); then
+    printf '%dm %02ds' "$((total / 60))" "$((total % 60))"
+  else
+    printf '%ds' "$total"
+  fi
+}
+
 run() {
+  local name="$1"
+  shift
+  local started=$SECONDS
   step=$((step + 1))
-  log "[$step/$STEPS] $*"
+  log "[$step/$STEPS] $name: $*"
   "$@"
+  local elapsed=$((SECONDS - started))
+  timing_steps+=("$step")
+  timing_names+=("$name")
+  timing_seconds+=("$elapsed")
+  log "[$step/$STEPS] $name completed in $(duration "$elapsed")"
+}
+
+skip() {
+  local name="$1"
+  local reason="$2"
+  step=$((step + 1))
+  timing_steps+=("$step")
+  timing_names+=("$name")
+  timing_seconds+=("0")
+  log "[$step/$STEPS] $name skipped: $reason"
+}
+
+print_timing_table() {
+  printf '\n%-6s %-24s %s\n' "Step" "Task" "Elapsed"
+  printf '%-6s %-24s %s\n' "----" "------------------------" "-------"
+  local i total=0
+  for i in "${!timing_steps[@]}"; do
+    printf '%-6s %-24s %s\n' "${timing_steps[$i]}/$STEPS" "${timing_names[$i]}" "$(duration "${timing_seconds[$i]}")"
+    total=$((total + timing_seconds[i]))
+  done
+  printf '%-6s %-24s %s\n' "Total" "all steps" "$(duration "$total")"
+  printf '\n'
 }
 trap 'log "FAILED at step $step/$STEPS: $BASH_COMMAND"; log "fix the cause and re-run scripts/entry.sh; completed stages are skipped or make no changes"' ERR
 
 cd "$REPO_ROOT"
-run scripts/vmrest-start.sh
-run scripts/fetch-rocky-iso.sh
-run scripts/preflight.sh
+run "vmrest 시작" scripts/vmrest-start.sh
+run "Rocky ISO 확인" scripts/fetch-rocky-iso.sh
+run "사전 점검" scripts/preflight.sh
 
 if [[ -d "$LAB_IMAGE_DIR/$golden_name" ]]; then
-  step=$((step + 1))
-  log "[$step/$STEPS] golden image $golden_name already built; skipping (images are immutable)"
+  skip "기준 이미지" "$golden_name already exists (images are immutable)"
 else
-  run scripts/golden-build.sh "$GOLDEN_VERSION"
+  run "기준 이미지" scripts/golden-build.sh "$GOLDEN_VERSION"
 fi
 
-run scripts/tf.sh init
-run scripts/cluster-apply.sh -auto-approve
-run scripts/render-inventory.sh
+run "Terraform 준비" scripts/tf.sh init
+run "VM 상태 맞춤" scripts/cluster-apply.sh -auto-approve
+run "IP 목록 생성" scripts/render-inventory.sh
 
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
 cd infra/ansible
-run ansible-playbook playbooks/ping.yml
-run ansible-playbook playbooks/site.yml
+run "SSH 확인" ansible-playbook playbooks/ping.yml
+run "OS + K3s" ansible-playbook playbooks/site.yml
 
 nodes=$("$REPO_ROOT/scripts/tf.sh" output -json nodes)
+print_timing_table
 log "provisioning complete: golden image $golden_name, nodes $(jq -r 'keys | join(", ")' <<<"$nodes")"

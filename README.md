@@ -55,19 +55,24 @@ scripts/entry.sh
 
 ## `scripts/entry.sh`가 하는 일
 
-`entry.sh`는 아래 단계 스크립트를 순서대로 호출하는 얇은 진입점이다. 어느 단계든 실패하면 즉시 멈추고 `FAILED at step N/9: <명령>`을 출력한다.
+`entry.sh`는 아래 9단계를 순서대로 실행한다. 어느 단계든 실패하면 즉시 멈추고 `FAILED at step N/9: <명령>`을 출력한다. 성공하면 마지막에 이번 실행의 단계별 소요 시간과 합계를 자동으로 보여 준다.
 
-| 단계 | 호출 | 처음 실행 | 다시 실행 |
-|---|---|---|---|
-| 1 | `scripts/vmrest-start.sh` | vmrest를 HTTPS·`127.0.0.1:8697`로 기동 | 이미 떠 있으면 그대로 둔다 |
-| 2 | `scripts/fetch-rocky-iso.sh` | Rocky 9.8 DVD ISO(15.2GB) 다운로드 후 공식 서명·SHA-256 검증 | 서명과 해시만 재확인 |
-| 3 | `scripts/preflight.sh` | 도구 버전·vmrest·비밀값 권한·ISO·골든 이미지 무결성 점검. FAIL이 하나라도 있으면 중단 | 동일 |
-| 4 | `scripts/golden-build.sh <버전>` | Packer로 골든 이미지 빌드(약 11분) | 해당 버전이 있으면 건너뜀(이미지는 불변) |
-| 5 | `scripts/tf.sh init` | Provider 설치(lock 파일 해시로 고정) | 변경 없음 |
-| 6 | `scripts/cluster-apply.sh -auto-approve` | VM 3대를 꺼진 채 생성 → 켬 | 코드와 달라진 것만 맞춘다(예: 꺼진 VM을 켬). 같으면 `No changes` |
-| 7 | `scripts/render-inventory.sh` | Terraform의 VM ID로 vmrest에서 IP를 받아 inventory 생성 | IP를 다시 받아 갱신 |
-| 8 | `ansible-playbook playbooks/ping.yml` | SSH 접속 확인 | 동일 |
-| 9 | `ansible-playbook playbooks/site.yml` | OS 구성(bootstrap) + K3s server/agent | `changed=0` |
+시간은 2026-09-18 현재 호스트의 실행 기록을 기준으로 잡았다. **Rocky ISO가 이미 캐시에 있는 상태에서 신규 클러스터 완성까지 16분**을 기준으로 단계별 시간을 배분했다. 15.2GB ISO를 처음 내려받는 시간만 네트워크 차이가 너무 커서 이 16분에서 제외한다. 재실행 시간은 정상 가동 중인 클러스터에서 직접 잰 값이다.
+
+| 단계 | 쉬운 키워드 | 실제로 하는 일 | 신규 구축 16분 기준 | 정상 상태 재실행 |
+|---:|---|---|---:|---:|
+| 1 | 제어창 열기 | VMware를 제어하는 로컬 서비스 시작 | **0분 00초** | **0분 00초** |
+| 2 | 설치 파일 확인 | 캐시된 Rocky ISO의 공식 서명과 파일 손상 확인 | **0분 38초** | **0분 38초** |
+| 3 | 시작 전 건강검진 | 도구·네트워크·권한·남은 용량·이미지 상태 확인 | **0분 50초** | **0분 50초** |
+| 4 | 기준 VM 만들기 | Rocky가 설치된 복제 원본 생성 | **11분 00초** | **0분 00초**(있으면 건너뜀) |
+| 5 | VM 도구 준비 | 필요한 Terraform 확장 기능 확인 | **0분 01초** | **0분 01초** |
+| 6 | VM 3대 맞추기 | VM 생성·사양 확인·전원 켜기 | **0분 12초** | **0분 00초** |
+| 7 | IP 주소 적기 | 세 VM의 현재 IP를 Ansible 목록에 반영 | **0분 26초** | **0분 01초** |
+| 8 | 접속 시험 | 세 VM에 SSH로 들어갈 수 있는지 확인 | **0분 06초** | **0분 06초** |
+| 9 | OS와 K3s 맞추기 | 보안·시간·네트워크 기본값과 K3s 구성 | **2분 47초** | **0분 20초** |
+| **합계** |  |  | **16분 00초** | **1분 56초** |
+
+16분 중 기준 VM 빌드가 11분으로 가장 오래 걸리며 전체의 약 69%를 차지한다. ISO 최초 다운로드는 이 표와 별도다. 2·3단계가 재실행 때도 긴 이유는 15.2GB ISO 전체를 다시 읽어 손상 여부를 확인하기 때문이다.
 
 골든 이미지 버전은 `infra/terraform/variables.tf`의 `golden_vm_name` 기본값(`k3slab-golden-rocky98-20260918-1`)에서 읽는다. Terraform이 복제할 이미지와 빌드할 이미지가 항상 같다. 8·9단계는 `~/.local/share/k3s-vmware-lab/ansible-venv`를 활성화한 뒤 `infra/ansible`에서 실행한다.
 
@@ -107,7 +112,7 @@ scripts/entry.sh
 scripts/entry.sh
 ```
 
-- 오래 걸리는 단계는 ISO 다운로드(15.2GB, 회선 속도에 따라 다름)와 골든 이미지 빌드(약 11분)다. 빌드 VM은 헤드리스로 돌아 화면에 창이 뜨지 않는다.
+- ISO가 준비된 상태에서는 전체 약 16분이며, 그중 골든 이미지 빌드가 11분으로 가장 오래 걸린다. 15.2GB ISO 최초 다운로드 시간은 별도다. 빌드 VM은 헤드리스로 돌아 화면에 창이 뜨지 않는다.
 - 마지막 줄에 `provisioning complete: golden image …, nodes k3s-server, worker-cpu-1, worker-cpu-2`가 나오면 끝이다. 직전 출력에 세 노드가 `Ready`로 나열된다.
 - kubeconfig는 `~/.config/k3s-vmware-lab/secrets/kubeconfig`(0600)에 생긴다.
 
@@ -119,7 +124,7 @@ scripts/entry.sh
 scripts/entry.sh
 ```
 
-- 이미 가동 중이면 아무것도 바꾸지 않는다(검증: 약 2분, Terraform `No changes`, Ansible `changed=0`).
+- 이미 가동 중이면 아무것도 바꾸지 않는다(2026-09-18 실측 1분 56초, Terraform `No changes`, Ansible `changed=0`).
 - 호스트 재부팅 뒤처럼 vmrest가 멈추고 VM이 꺼져 있으면 vmrest를 띄우고, VM을 켜고, 새 IP로 inventory를 만든 뒤 Ansible로 상태를 확인한다(검증: 약 2분 30초, VM 3대 전원 켬, `changed=0`, 세 노드 `Ready`).
 
 ### 시나리오 3. 중간에 실패했을 때
@@ -168,46 +173,65 @@ cd infra/ansible
 ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 ```
 
-## 검증
+## 다 끝났는지 확인하기
+
+복잡한 진단보다 아래 네 가지 결과만 먼저 본다.
+
+| 확인 질문 | 실행할 명령 | 정상 결과 |
+|---|---|---|
+| 시작 조건이 모두 정상인가? | `scripts/preflight.sh` | 마지막 줄이 `0 FAIL, 0 WARN` |
+| 코드와 실제 VM이 같은가? | `scripts/tf.sh plan -detailed-exitcode` | `No changes`, 종료 코드 0 |
+| 세 노드가 준비됐는가? | 아래 `get nodes` 명령 | 세 줄 모두 `Ready` |
+| 기본 서비스가 살아 있는가? | 아래 `get pods` 명령 | 모두 `Running` 또는 `Completed` |
 
 ```bash
-scripts/tf.sh plan -detailed-exitcode       # 0이어야 함
-scripts/preflight.sh
-
 source ~/.local/share/k3s-vmware-lab/ansible-venv/bin/activate
 cd infra/ansible
-ansible-playbook playbooks/bootstrap.yml    # 재실행 changed=0
-ansible-playbook playbooks/k3s.yml          # 재실행 changed=0
 ansible k3s_server -b -m command -a '/usr/local/bin/k3s kubectl get nodes -o wide'
 ansible k3s_server -b -m command -a '/usr/local/bin/k3s kubectl get pods -A -o wide'
 ```
 
-## Rocky 골든 이미지
+`scripts/entry.sh`를 다시 실행했을 때 Terraform은 `No changes`, Ansible은 `changed=0`이면 반복 실행 안전성도 확인된 것이다.
 
-- ISO는 `scripts/fetch-rocky-iso.sh`만으로 받는다. 바이트는 국내 KRFOSS Rocky 미러에서 받지만, Rocky 9 공식 키 지문과 공식 `CHECKSUM.asc` 서명을 확인한 뒤 크기와 SHA-256을 다시 고정값과 대조한다.
-- Anaconda Kickstart는 `OEMDRV` 라벨의 보조 CD로 전달한다. 빌드 과정에서 HTTP 서버나 LAN 수신 포트를 열지 않는다.
-- DVD ISO의 `Server` 환경을 설치하고 `skipx` 및 음수 패키지 항목으로 GNOME/Xorg를 제외한다.
-- 빌드 VM은 vmnet8 DHCP 풀 밖의 `.10` 고정 주소를 사용한다. `finalize.sh`는 저장된 NetworkManager 프로필을 MAC 기반 DHCP로 바꿔 복제본이 첫 부팅 때 고유 주소를 받게 한다.
-- `finalize.sh`는 OS/버전, `multi-user.target`, GUI 패키지 부재, NetworkManager와 open-vm-tools를 확인한다. 그 후 SSH 호스트 키와 machine-id를 비워 복제본별로 재생성한다.
-- 골든 VMX/VMDK는 SHA-256 기록 후 0444로 잠그고 vmrest에 등록한다.
+## 자주 나오는 말, 쉬운 뜻
 
-## Rocky/K3s 구성
+| 문서의 용어 | 이 README에서 생각할 뜻 |
+|---|---|
+| 골든 이미지 | VM 3대를 찍어 내는 **복제 원본** |
+| vmrest | VMware를 명령줄에서 움직이는 **로컬 제어창** |
+| Terraform | VM 개수·사양·전원을 맞추는 **VM 상태 관리자** |
+| Ansible | VM 안의 설정과 K3s를 맞추는 **자동 설정 도구** |
+| inventory | Ansible이 접속할 VM 이름과 IP를 적은 **접속 목록** |
+| state | Terraform이 마지막으로 관리한 내용을 기억하는 **상태 기록** |
+| SELinux | K3s 프로세스가 허용된 범위에서만 동작하게 하는 **OS 보안 장치** |
 
-- SELinux는 enforcing으로 유지한다. Ansible이 `container-selinux`, `selinux-policy-base`, 서명된 `k3s-selinux` RPM을 설치하고 K3s 설정에 `selinux: true`를 기록한다.
-- 시간 동기화는 `chronyd`가 담당한다.
-- K3s 공식 RHEL 계열 권고에 따라 VM의 `firewalld`는 bootstrap에서 중지·비활성화한다. VM은 외부 브리지 대신 호스트 전용 NAT인 vmnet8에만 연결된다.
-- 스왑은 Kickstart에서 만들지 않으며 Ansible이 0인지 검사한다.
+## 복제 원본은 이렇게 만든다
 
-## Provider 2.0.1 제약
+- **설치 파일**: Rocky 9.8 DVD ISO를 받고 공식 서명과 파일 지문을 확인한다.
+- **자동 설치**: 사람이 화면을 클릭하는 대신 답안 파일(Kickstart)로 Server 환경을 설치한다.
+- **화면 환경 제외**: 서버에 필요 없는 GNOME/X11은 넣지 않는다. 부팅 후에도 텍스트 서버 모드인지 확인한다.
+- **복제 준비**: 첫 부팅 때 각 VM이 자기 IP, 시스템 ID, SSH 키를 새로 만들도록 원본의 고정값을 비운다.
+- **원본 보호**: 완성 파일의 지문을 기록하고 읽기 전용으로 잠근다. 기존 원본은 수정하지 않고 새 버전을 만든다.
 
-1. Terraform은 반드시 `scripts/tf.sh`로 실행한다. 이 wrapper가 자격증명, 외부 state, 0600 백업, `-parallelism=1`을 강제한다.
-2. 골든 NIC는 `custom`/`vmnet8`이어야 한다. `nat`이면 provider의 NIC 재생성이 실패한다.
-3. 새 VM은 꺼진 상태로 생성한 뒤 두 번째 apply에서 켠다. `scripts/cluster-apply.sh`가 두 단계를 처리한다.
-4. provider의 모든 수정은 VM을 강제로 끈다. CPU·메모리 변경 전 게스트를 정상 종료한다.
-5. `sourceid` 변경은 자동 교체하지 않는다. 새 골든으로 노드를 재구축할 때만 명시적으로 `-replace`한다.
-6. `debug = "DEBUG"`는 vmrest 암호를 로그에 노출하므로 `NONE`을 유지한다.
-7. Terraform 관리 VM을 Workstation GUI에서 복제·이름 변경·삭제하지 않는다.
+## VM 안에서 자동으로 맞추는 값
 
-## 원격 세션 안전
+| 쉬운 키워드 | 자동으로 맞추는 내용 |
+|---|---|
+| 보안 | SELinux를 켠 상태로 유지하고 K3s용 보안 규칙을 설치 |
+| 시간 | 세 VM의 시계를 `chronyd`로 동기화 |
+| 네트워크 | 내부 NAT망을 사용하고 K3s 통신에 필요한 커널 설정 적용 |
+| 방화벽 | K3s의 RHEL 계열 권고에 따라 VM 내부 `firewalld` 중지 |
+| 메모리 | 스왑을 만들지 않고 실제로 0인지 확인 |
+| 클러스터 | 서버 1대와 작업 노드 2대를 구성하고 모두 `Ready`가 될 때까지 대기 |
 
-물리 호스트는 원격 운용 중이다. 기본 VM 경로와 사용자 영역 데이터 외의 호스트 네트워크·커널·서비스는 이 워크플로우가 변경하지 않는다. `playbooks/gpu-host.yml`은 물리 호스트 네트워크에 K3s/CNI 규칙을 추가하므로 콘솔 유지보수 창에서 `-e host_changes_allowed=true -K`를 명시한 경우에만 실행한다.
+## 운영할 때 꼭 지킬 것
+
+1. 평소에는 `scripts/entry.sh`만 실행한다. Terraform을 따로 쓸 때도 반드시 `scripts/tf.sh`를 거친다.
+2. CPU나 메모리를 바꾸기 전에는 시나리오 5처럼 VM 안에서 먼저 정상 종료한다. 이 Provider는 변경할 때 VM을 강제로 끌 수 있다.
+3. Terraform이 관리하는 VM을 Workstation GUI에서 복제·이름 변경·삭제하지 않는다.
+4. 복제 원본을 수정하지 않는다. 바꿀 내용이 있으면 새 버전 이름으로 다시 만든다.
+5. Provider의 디버그 모드를 켜지 않는다. 로그에 vmrest 비밀번호가 노출될 수 있다.
+6. SSH 키, 비밀번호, K3s 접속 파일은 저장소 밖 `~/.config/k3s-vmware-lab/secrets/`에만 둔다.
+7. 물리 GPU 호스트 작업은 원격 세션에서 하지 않는다. `gpu-host.yml`은 콘솔 유지보수 시간에만 실행한다.
+
+Provider API, 파일 해시, SELinux 컨텍스트 같은 상세 근거가 필요하면 [기술 인계서](docs/vmware-iac-handoff.md)를 본다.
