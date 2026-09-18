@@ -1,0 +1,49 @@
+- name: Create the cluster join token on the control node (first run only)
+  ansible.builtin.set_fact:
+    k3s_token: "{{ lookup('ansible.builtin.password', k3s_token_file ~ ' length=48 chars=ascii_letters,digits') }}"
+  no_log: true
+
+- name: Keep the token file private
+  ansible.builtin.file:
+    path: "{{ k3s_token_file }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+
+- name: Install and start the k3s server
+  ansible.builtin.include_role:
+    name: k3s_node
+  vars:
+    k3s_mode: server
+    k3s_config:
+      node-name: "{{ inventory_hostname }}"
+      token: "{{ k3s_token }}"
+      selinux: "{{ (ansible_facts.selinux.status | default('disabled')) == 'enabled' }}"
+      tls-san:
+        - "{{ k3s_server_hostname }}"
+        - "{{ ansible_host }}"
+      write-kubeconfig-mode: "0600"
+      node-label: "{{ k3s_node_labels | default([]) }}"
+
+- name: Wait until the API server reports ready
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+  register: k3s_readyz
+  until: k3s_readyz.stdout == "ok"
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Read the admin kubeconfig
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig_raw
+  no_log: true
+
+- name: Store the kubeconfig on the control node, pointed at the server address
+  ansible.builtin.copy:
+    content: "{{ k3s_kubeconfig_raw.content | b64decode | replace('https://127.0.0.1:6443', 'https://' ~ ansible_host ~ ':6443') }}"
+    dest: "{{ k3s_kubeconfig_file }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true

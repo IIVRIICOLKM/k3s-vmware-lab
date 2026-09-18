@@ -1,0 +1,5 @@
+- name: Bootstrap
+  ansible.builtin.import_playbook: bootstrap.yml
+
+- name: K3s
+  ansible.builtin.import_playbook: k3s.yml

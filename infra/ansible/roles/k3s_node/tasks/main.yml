@@ -1,0 +1,51 @@
+- name: Install the pinned k3s binary (checksum verified)
+  ansible.builtin.get_url:
+    url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version | urlencode }}/k3s"
+    dest: /usr/local/bin/k3s
+    checksum: "sha256:{{ k3s_binary_sha256 }}"
+    mode: "0755"
+  notify: Restart k3s
+
+- name: Apply the K3s SELinux executable context
+  ansible.builtin.command: restorecon -v /usr/local/bin/k3s
+  register: k3s_restorecon
+  changed_when: k3s_restorecon.stdout | length > 0
+  notify: Restart k3s
+
+- name: Link kubectl, crictl and ctr to k3s
+  ansible.builtin.file:
+    src: /usr/local/bin/k3s
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop: [kubectl, crictl, ctr]
+
+- name: Create the k3s configuration directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Write the k3s configuration (holds the join token)
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: "{{ k3s_config | to_nice_yaml(indent=2) }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart k3s
+
+- name: Install the systemd unit
+  ansible.builtin.template:
+    src: k3s.service.j2
+    dest: "/etc/systemd/system/{{ k3s_service }}.service"
+    mode: "0644"
+  notify: Restart k3s
+
+- name: Enable and start k3s
+  ansible.builtin.systemd_service:
+    name: "{{ k3s_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply pending restarts before anything waits on k3s
+  ansible.builtin.meta: flush_handlers

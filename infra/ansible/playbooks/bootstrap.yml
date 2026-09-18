@@ -1,0 +1,5 @@
+- name: Prepare the VMs for K3s
+  hosts: vms
+  become: true
+  roles:
+    - common

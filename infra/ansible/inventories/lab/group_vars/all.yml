@@ -1,0 +1,16 @@
+lab_secrets_dir: "{{ lookup('env', 'HOME') }}/.config/k3s-vmware-lab/secrets"
+lab_state_dir: "{{ lookup('env', 'HOME') }}/.local/state/k3s-vmware-lab"
+
+ansible_user: k3sadmin
+ansible_ssh_private_key_file: "{{ lab_secrets_dir }}/ansible_ed25519"
+# Clones regenerate their host keys on first boot; accept a new key once and keep it out of ~/.ssh/known_hosts.
+ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile={{ lab_state_dir }}/ansible/known_hosts"
+
+k3s_version: v1.36.4+k3s1
+k3s_binary_sha256: 835873f37245fc615f547a2fe2af9402a347875f13fa64a1f136de644955ea3f
+k3s_selinux_rpm_version: 1.6-1.el9
+k3s_selinux_rpm_sha256: 1115a1223b0db998c7977c879f2a3a6f07a0c63240f68f6e3b665a7ae27c38f7
+k3s_rancher_rpm_key_sha256: 7d2415f7fc532c365c8874bfad966566daaa0d04a9a5ba14d1db6080a9c12629
+k3s_server_hostname: k3s-server
+k3s_token_file: "{{ lab_secrets_dir }}/k3s-token"
+k3s_kubeconfig_file: "{{ lab_secrets_dir }}/kubeconfig"

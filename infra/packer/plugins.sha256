@@ -1,0 +1,4 @@
+# Packer has no dependency lock file (there is no packer.lock.hcl); this records the plugin binary that
+# `packer init` installed and verified against the release checksums. scripts/preflight.sh checks it.
+# <sha256>  <plugin source> <version> <os_arch> <binary name>
+fba3b9d72e4439d53798d3945d068b8fe123fa8135f3e631b1b2af345882e12f  github.com/hashicorp/vmware 2.1.6 linux_amd64 packer-plugin-vmware_v2.1.6_x5.0_linux_amd64

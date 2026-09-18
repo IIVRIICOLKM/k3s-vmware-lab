@@ -1,0 +1,31 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.example.tfvars
+crash.log
+
+# Packer
+.packer.d/
+packer_cache/
+*.iso
+
+# VMware artifacts (VMs and images live under ~/.local/share/k3s-vmware-lab)
+*.vmdk
+*.vmx
+*.vmem
+*.nvram
+*.vmsd
+*.vmsn
+*.vmss
+*.vmxf
+*.lck/
+
+# Generated and local-only files
+*.log
+.generated/
+secrets/
+*.retry
+__pycache__/

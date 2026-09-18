@@ -1,0 +1,25 @@
+# Joins the physical GPU host as a K3s agent. NOT part of site.yml: the host is operated remotely and k3s-agent adds a
+# service plus CNI/iptables rules to its network stack. Run it only at the console, during a maintenance window:
+#   ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
+- name: Join the physical GPU host (maintenance window only)
+  hosts: gpu_nodes
+  # The guard has to run before anything escalates privileges, so facts are gathered only after it passes.
+  gather_facts: false
+  pre_tasks:
+    - name: Refuse to change the remotely operated host unless explicitly allowed
+      ansible.builtin.assert:
+        that: host_changes_allowed | bool
+        fail_msg: >-
+          gpu-host is the remotely operated desktop. Joining it installs k3s-agent and CNI/iptables rules on the
+          host network stack, which can drop a remote session. Re-run at the console with -e host_changes_allowed=true -K.
+
+    - name: The NVIDIA container toolkit must already be installed (this playbook does not change drivers)
+      ansible.builtin.command: nvidia-ctk --version
+      changed_when: false
+
+    - name: Gather facts
+      ansible.builtin.setup:
+      become: true
+  roles:
+    - role: k3s_agent
+      become: true

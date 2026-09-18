@@ -1,0 +1,135 @@
+- name: The VM must be Rocky Linux 9.8 Server with SELinux enforcing
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Rocky'
+      - ansible_facts.distribution_version == '9.8'
+      - ansible_facts.selinux.status == 'enabled'
+      - ansible_facts.selinux.mode == 'enforcing'
+    fail_msg: >-
+      This inventory is for Rocky Linux 9.8 Server VMs with enforcing SELinux; found
+      {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }} and
+      SELinux {{ ansible_facts.selinux.status | default('unknown') }}/{{ ansible_facts.selinux.mode | default('unknown') }}.
+    quiet: true
+
+- name: Install common Rocky and K3s SELinux dependencies
+  ansible.builtin.dnf:
+    name:
+      - ca-certificates
+      - chrony
+      - container-selinux
+      - curl
+      - firewalld
+      - jq
+      - open-vm-tools
+      - policycoreutils
+      - python3
+      - selinux-policy-base
+    state: present
+    update_cache: true
+
+- name: Download the pinned Rancher RPM signing key
+  ansible.builtin.get_url:
+    url: https://rpm.rancher.io/public.key
+    dest: /etc/pki/rpm-gpg/RPM-GPG-KEY-rancher
+    checksum: "sha256:{{ k3s_rancher_rpm_key_sha256 }}"
+    mode: "0644"
+
+- name: Trust the Rancher RPM signing key
+  ansible.builtin.rpm_key:
+    key: /etc/pki/rpm-gpg/RPM-GPG-KEY-rancher
+    state: present
+
+- name: Download the pinned K3s SELinux policy RPM
+  ansible.builtin.get_url:
+    url: "https://rpm.rancher.io/k3s/latest/common/centos/9/noarch/k3s-selinux-{{ k3s_selinux_rpm_version }}.noarch.rpm"
+    dest: "/var/cache/k3s-selinux-{{ k3s_selinux_rpm_version }}.noarch.rpm"
+    checksum: "sha256:{{ k3s_selinux_rpm_sha256 }}"
+    mode: "0644"
+
+- name: Install the pinned K3s SELinux policy
+  ansible.builtin.dnf:
+    name: "/var/cache/k3s-selinux-{{ k3s_selinux_rpm_version }}.noarch.rpm"
+    state: present
+
+- name: Name the node after its inventory entry
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Point the Rocky loopback entry at the node name
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.0\.1\s'
+    line: "127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4 {{ inventory_hostname }}"
+
+- name: Resolve every lab VM by name
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} k3s-vmware-lab VMs (managed by Ansible)"
+    block: |
+      {% for h in groups['vms'] | sort %}
+      {{ hostvars[h]['ansible_host'] }} {{ h }}
+      {% endfor %}
+
+- name: Load the kernel modules K3s networking needs at every boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: "0644"
+  notify: Load kernel modules
+
+- name: Enable forwarding and bridge netfilter for pod traffic
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-k3s.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+    mode: "0644"
+  notify: Apply sysctl settings
+
+- name: Kubelet expects swap to be off
+  ansible.builtin.assert:
+    that: ansible_facts.memtotal_mb > 0 and ansible_facts.swaptotal_mb == 0
+    fail_msg: "swap is enabled; the golden image is built without swap"
+    quiet: true
+
+- name: The VM must boot to the non-graphical systemd target
+  ansible.builtin.command: systemctl get-default
+  register: default_target
+  changed_when: false
+  failed_when: default_target.stdout != 'multi-user.target'
+
+- name: GUI packages must not be installed
+  ansible.builtin.command: "rpm -q {{ item }}"
+  loop:
+    - gnome-shell
+    - xorg-x11-server-Xorg
+  register: gui_package_query
+  changed_when: false
+  failed_when: gui_package_query.rc == 0
+
+- name: Disable firewalld as recommended by K3s for RHEL-family nodes
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: stopped
+    enabled: false
+
+- name: Keep the clock in sync with chronyd (certificates and leases depend on it)
+  ansible.builtin.systemd_service:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Keep NetworkManager running for the clone DHCP profile
+  ansible.builtin.systemd_service:
+    name: NetworkManager
+    state: started
+    enabled: true
+
+- name: Keep VMware Tools running for vmrest IP discovery
+  ansible.builtin.systemd_service:
+    name: vmtoolsd
+    state: started
+    enabled: true

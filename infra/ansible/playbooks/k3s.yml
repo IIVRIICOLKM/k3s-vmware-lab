@@ -1,0 +1,38 @@
+- name: K3s server
+  hosts: k3s_server
+  become: true
+  roles:
+    - k3s_server
+
+# gpu-host is also in k3s_agents but is handled only by playbooks/gpu-host.yml.
+- name: K3s agents on the VMs
+  hosts: k3s_agents:&vms
+  become: true
+  roles:
+    - k3s_agent
+
+- name: Every VM node is Ready
+  hosts: k3s_server
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Wait until all VM nodes have registered
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o name
+      register: k3s_nodes
+      until: (k3s_nodes.stdout_lines | length) >= (groups['vms'] | length)
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: Wait until they are Ready
+      ansible.builtin.command: /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=300s
+      changed_when: false
+
+    - name: Show the nodes
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o wide --show-labels
+      register: k3s_nodes_wide
+      changed_when: false
+
+    - name: Nodes
+      ansible.builtin.debug:
+        var: k3s_nodes_wide.stdout_lines

@@ -1,0 +1,6 @@
+# gpu-host is the physical desktop that is operated remotely. Joining it to K3s installs a service and CNI/iptables
+# rules on the host network stack, so playbooks refuse to touch it unless this is set explicitly for a maintenance
+# window at the console: ansible-playbook playbooks/k3s.yml -e host_changes_allowed=true -K
+host_changes_allowed: false
+k3s_node_labels:
+  - k3slab.io/role=gpu

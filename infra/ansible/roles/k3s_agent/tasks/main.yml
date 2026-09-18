@@ -1,0 +1,11 @@
+- name: Install and start the k3s agent
+  ansible.builtin.include_role:
+    name: k3s_node
+  vars:
+    k3s_mode: agent
+    k3s_config:
+      node-name: "{{ inventory_hostname }}"
+      server: "https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443"
+      token: "{{ lookup('ansible.builtin.password', k3s_token_file ~ ' length=48 chars=ascii_letters,digits') }}"
+      selinux: "{{ (ansible_facts.selinux.status | default('disabled')) == 'enabled' }}"
+      node-label: "{{ k3s_node_labels | default([]) }}"

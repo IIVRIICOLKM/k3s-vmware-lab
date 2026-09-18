@@ -1,0 +1,164 @@
+digraph workflow {
+  graph [
+    rankdir=TB,
+    bgcolor="#F8FAFC",
+    pad="0.28",
+    margin="0.05",
+    nodesep="0.34",
+    ranksep="0.62",
+    splines=polyline,
+    fontname="Noto Sans CJK KR",
+    labelloc="t",
+    labeljust="l",
+    label=<<FONT POINT-SIZE="30"><B>VMware Workstation Pro 기반 Packer → Terraform → Ansible 전체 워크플로우</B></FONT><BR/><FONT POINT-SIZE="16">물리 호스트: Ubuntu 26.04.1 LTS · 게스트: Rocky Linux 9.8 Server(무GUI) · Workstation 26.0.0 · vmrest 1.3.1</FONT>>
+  ];
+
+  node [
+    shape=rect,
+    style="rounded,filled",
+    color="#94A3B8",
+    fillcolor="#EAF2FF",
+    fontcolor="#0F172A",
+    fontname="Noto Sans CJK KR",
+    fontsize=17,
+    penwidth=1.6,
+    margin="0.16,0.11"
+  ];
+
+  edge [
+    color="#475569",
+    fontcolor="#334155",
+    fontname="Noto Sans CJK KR",
+    fontsize=13,
+    penwidth=1.7,
+    arrowsize=0.8
+  ];
+
+  source [label=<<B>IaC 저장소</B><BR/><FONT POINT-SIZE="14">packer/ · terraform/ · ansible/</FONT>>, fillcolor="#E2E8F0"];
+
+  preflight [
+    label=<<B>0. 사전 점검 게이트</B><BR ALIGN="LEFT"/><FONT POINT-SIZE="14">커널 모듈 · vmnet · vmrest · 포트 8697<BR/>CLI 설치 · 기준 이미지 경로 · 디스크 여유</FONT>>,
+    fillcolor="#FFE1E1",
+    color="#DC2626",
+    penwidth=2.4
+  ];
+
+  packer [label=<<B>1. Packer</B><BR/><FONT POINT-SIZE="14">Rocky 9.8 DVD + Kickstart<BR/>Server 환경 · GUI 제외</FONT>>];
+  image [label=<<B>Rocky 골든 이미지</B><BR/><FONT POINT-SIZE="14">VMX + VMDK<BR/>버전·SHA-256 고정 / 변경 금지</FONT>>, fillcolor="#F1EBFF", color="#7C3AED"];
+
+  terraform [label=<<B>2. Terraform</B><BR/><FONT POINT-SIZE="14">VM 선언 · 상태 관리 · 출력 생성<BR/><B>apply -parallelism=1</B></FONT>>, fillcolor="#EAF2FF", color="#2563EB", penwidth=2.2];
+  tfstate [label=<<B>terraform.tfstate</B><BR/><FONT POINT-SIZE="13">백업·접근 통제<BR/>수동 편집 금지</FONT>>, fillcolor="#F1EBFF", color="#7C3AED"];
+  provider [label=<<B>elsudano/vmworkstation</B><BR/><FONT POINT-SIZE="14"><B>v2.0.1 정확히 고정</B><BR/>linux_amd64 · protocol 6.0<BR/>Terraform ≥ 1.0</FONT>>, fillcolor="#FFF4D6", color="#D97706", penwidth=2.2];
+  vmrest [label=<<B>vmrest REST API</B><BR/><FONT POINT-SIZE="14">현재 설치: 1.3.1 build 25388281<BR/>localhost:8697/api · 자격증명 필요</FONT>>, fillcolor="#FFF4D6", color="#D97706", penwidth=2.2];
+  workstation [label=<<B>VMware Workstation Pro</B><BR/><FONT POINT-SIZE="14">26.0.0 build 25388281<BR/>복제 · 등록 · 전원 · 가상 네트워크</FONT>>, fillcolor="#E8F5E9", color="#15803D", penwidth=2.2];
+
+  inventory [label=<<B>Ansible inventory</B><BR/><FONT POINT-SIZE="13">Terraform output → IP/호스트 그룹</FONT>>, fillcolor="#F1EBFF", color="#7C3AED"];
+  ansible [label=<<B>3. Ansible</B><BR/><FONT POINT-SIZE="14">SSH 준비 확인 · 역할별 구성<BR/>멱등성 검증</FONT>>, fillcolor="#EAF2FF", color="#2563EB", penwidth=2.2];
+
+  subgraph cluster_runtime {
+    label=<<B>최종 K3s 런타임</B>>;
+    color="#CBD5E1";
+    penwidth=1.5;
+    style="rounded";
+    fontname="Noto Sans CJK KR";
+    fontsize=18;
+    margin=16;
+
+    server [label=<<B>k3s-server VM</B><BR/><FONT POINT-SIZE="13">2 vCPU · 3 GB<BR/>Control plane</FONT>>, fillcolor="#E8F5E9", color="#15803D"];
+    worker1 [label=<<B>worker-cpu-1 VM</B><BR/><FONT POINT-SIZE="13">2 vCPU · 6 GB<BR/>Jenkins · Argo CD<BR/>모니터링 · MySQL</FONT>>, fillcolor="#E8F5E9", color="#15803D"];
+    worker2 [label=<<B>worker-cpu-2 VM</B><BR/><FONT POINT-SIZE="13">2 vCPU · 3 GB<BR/>API · 전처리<BR/>장애 실험 대상</FONT>>, fillcolor="#E8F5E9", color="#15803D"];
+    gpuhost [label=<<B>gpu-host 물리 노드</B><BR/><FONT POINT-SIZE="13">Linux 호스트 · K3s agent<BR/>RTX 3090 직접 사용</FONT>>, fillcolor="#E8F5E9", color="#15803D"];
+
+    { rank=same; server; worker1; worker2; gpuhost; }
+  }
+
+  fallback [label=<<B>제한적 우회</B><BR/><FONT POINT-SIZE="13">vmrun / API 스크립트<BR/>Provider 미지원 작업만</FONT>>, fillcolor="#FFF4D6", color="#D97706", style="rounded,filled,dashed"];
+
+  constraints [
+    shape=rect,
+    style="rounded,filled",
+    fillcolor="#FFF9E8",
+    color="#D97706",
+    penwidth=2.0,
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="3" CELLSPACING="0">
+      <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="17"><B>필수 제약조건 / 판정</B></FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C1</B> Provider v2.0.1 + .terraform.lock.hcl 고정</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C2</B> 26.0.0 조합은 공식 호환표 없음 → 스모크 테스트 필수</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C3</B> vmrest 실행 + 계정 구성 + localhost 제한</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C4</B> 문서 기준 Terraform <B>-parallelism=1</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C5</B> VM 이름·설명 변경은 API 알려진 제약</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C6</B> 관리 VM을 GUI에서 임의 수정·삭제하지 않음</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C7</B> 비밀값은 환경변수/권한 파일; .tf에 평문 금지</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>C8</B> GPU는 물리 호스트 직접 사용; VM 통과 경로와 분리</TD></TR>
+    </TABLE>>,
+    fontsize=13
+  ];
+
+  current [
+    shape=rect,
+    style="rounded,filled",
+    fillcolor="#E8F5E9",
+    color="#15803D",
+    penwidth=2.0,
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="3" CELLSPACING="0">
+      <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="17"><B>현재 확정 구성</B></FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">● Rocky Linux 9.8 Server · multi-user.target · GUI 없음</TD></TR>
+      <TR><TD ALIGN="LEFT">● NetworkManager DHCP · SELinux enforcing · chronyd</TD></TR>
+      <TR><TD ALIGN="LEFT">● vmrest: HTTPS 127.0.0.1:8697 전용</TD></TR>
+      <TR><TD ALIGN="LEFT">● 골든 NIC custom/vmnet8 · 복제본 고유 MAC</TD></TR>
+    </TABLE>>,
+    fontsize=13
+  ];
+
+  legend [
+    shape=rect,
+    style="rounded,filled",
+    fillcolor="#F8FAFC",
+    color="#CBD5E1",
+    penwidth=1.5,
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="3" CELLSPACING="0">
+      <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="17"><B>범례</B></FONT></TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#2563EB">■</FONT> 실행 도구 / 단계</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#7C3AED">■</FONT> 산출물 / 상태</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#15803D">■</FONT> 실행 대상 / 정상 경로</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#D97706">■</FONT> 필수 제약 / 검증 필요</TD></TR>
+      <TR><TD ALIGN="LEFT"><FONT COLOR="#15803D">■</FONT> 현재 확정 구성</TD></TR>
+      <TR><TD ALIGN="LEFT">┄ 점선 = 예외적 우회·주의 연결</TD></TR>
+    </TABLE>>,
+    fontsize=13
+  ];
+
+  source -> preflight [label="검증"];
+  preflight -> packer [label="통과 시"];
+  packer -> image [label="빌드"];
+  image -> terraform [label="source image"];
+  terraform -> tfstate [label="상태 기록", dir=both, arrowtail=none];
+  terraform -> provider [label="provider 호출"];
+  provider -> vmrest [label="HTTPS/REST"];
+  vmrest -> workstation [label="로컬 제어"];
+
+  terraform -> inventory [label="output"];
+  inventory -> ansible [label="동적 인벤토리"];
+  workstation -> server [label="VM 생성/기동"];
+  workstation -> worker1;
+  workstation -> worker2;
+  ansible -> server [label="SSH 구성"];
+  ansible -> worker1;
+  ansible -> worker2;
+  ansible -> gpuhost [label="K3s agent 구성"];
+
+  terraform -> fallback [style=dashed, color="#D97706", label="미지원 기능만"];
+  fallback -> workstation [style=dashed, color="#D97706", label="상태 추적 제한"];
+
+  preflight -> current [style=dotted, color="#15803D", arrowhead=none, constraint=false];
+  provider -> constraints [style=dotted, color="#D97706", arrowhead=none, constraint=false];
+
+  { rank=same; source; preflight; packer; image; }
+  { rank=same; terraform; provider; vmrest; workstation; }
+  { rank=same; tfstate; inventory; ansible; fallback; }
+  { rank=same; constraints; current; legend; }
+  server -> constraints [style=invis, weight=20, minlen=1];
+  worker1 -> current [style=invis, weight=20, minlen=1];
+  gpuhost -> legend [style=invis, weight=20, minlen=1];
+  constraints -> current -> legend [style=invis, weight=20];
+}

@@ -1,0 +1,10 @@
+- name: Reach every VM over SSH with the Ansible key
+  hosts: vms
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH (clones regenerate host keys on first boot)
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Ping
+      ansible.builtin.ping:
