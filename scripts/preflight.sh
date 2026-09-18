@@ -11,6 +11,13 @@ fail() { printf '  [FAIL] %s\n' "$*"; fails=$((fails + 1)); }
 info() { printf '  [INFO] %s\n' "$*"; }
 check_eq() { if [[ "$2" == "$3" ]]; then pass "$1: $2"; else fail "$1: found '$2', pinned '$3'"; fi; }
 
+echo "== Project files"
+if "$REPO_ROOT/scripts/verify-project.sh"; then
+  pass "required files, permissions, and Bash syntax"
+else
+  fail "project file verification failed (see output above)"
+fi
+
 echo "== Host"
 [[ "$(uname -s)/$(uname -m)" == "Linux/x86_64" ]] && pass "Linux x86_64, kernel $(uname -r)" || fail "unsupported host $(uname -s)/$(uname -m)"
 
@@ -78,6 +85,34 @@ done < <(find "$tf_state_dir" -type f -name 'terraform.tfstate*' 2>/dev/null)
 # vmrest's clone API has no destination argument; clones always land in Workstation's default VM path.
 default_vm_dir=$(workstation_default_vm_dir)
 check_eq "Workstation prefvmx.defaultVMPath" "$default_vm_dir" "$LAB_VM_DIR"
+
+echo "== Managed VMs and Workstation UI library"
+tf_state="$LAB_STATE_DIR/terraform/terraform.tfstate"
+if [[ -s "$tf_state" ]]; then
+  nodes=$("$REPO_ROOT/scripts/tf.sh" output -json nodes 2>/dev/null || true)
+  if jq -e 'type == "object" and length > 0' <<<"$nodes" >/dev/null 2>&1; then
+    inventory="$HOME/.vmware/inventory.vmls"
+    while IFS=$'\t' read -r name vmx; do
+      [[ -f "$vmx" ]] && pass "$name VMX exists" || fail "$name VMX missing: $vmx"
+      count=0
+      if [[ -f "$inventory" ]]; then
+        count=$(sed -n 's/^vmlist[0-9][0-9]*\.config = "\(.*\)"$/\1/p' "$inventory" |
+          awk -v path="$vmx" '$0 == path {count++} END {print count + 0}')
+      fi
+      if ((count == 1)); then
+        pass "$name appears in the Workstation UI library"
+      elif ((count > 1)); then
+        fail "$name appears $count times in the Workstation UI library"
+      else
+        warn "$name is absent from the Workstation UI library; scripts/cluster-apply.sh will register it"
+      fi
+    done < <(jq -r 'to_entries[] | [.key, .value.path] | @tsv' <<<"$nodes")
+  else
+    fail "Terraform state exists but output 'nodes' cannot be read"
+  fi
+else
+  info "no Terraform state yet; managed VM file/UI checks start after the first apply"
+fi
 
 echo "== Rocky Linux installation media"
 rocky_iso="$LAB_ISO_DIR/$PIN_ROCKY_ISO_FILENAME"

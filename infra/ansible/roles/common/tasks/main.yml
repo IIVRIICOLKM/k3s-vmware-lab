@@ -79,15 +79,60 @@
     mode: "0644"
   notify: Load kernel modules
 
-- name: Enable forwarding and bridge netfilter for pod traffic
+- name: Enable K3s networking without letting kernel warnings hide the VMware login prompt
   ansible.builtin.copy:
     dest: /etc/sysctl.d/90-k3s.conf
     content: |
       net.ipv4.ip_forward = 1
       net.bridge.bridge-nf-call-iptables = 1
       net.bridge.bridge-nf-call-ip6tables = 1
+      kernel.printk = 3 4 1 3
     mode: "0644"
-  notify: Apply sysctl settings
+  notify:
+    - Apply sysctl settings
+    - Refresh text console login
+
+- name: Read the boot arguments used by every Rocky kernel
+  ansible.builtin.command: grubby --info=ALL
+  register: rocky_boot_entries
+  changed_when: false
+
+- name: Boot directly into a quiet text console in VMware
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --update-kernel=ALL
+      - --remove-args=rhgb quiet
+      - --args=loglevel=3
+  when: >-
+    'rhgb' in rocky_boot_entries.stdout or
+    ' quiet' in rocky_boot_entries.stdout or
+    'loglevel=3' not in rocky_boot_entries.stdout
+  notify: Refresh text console login
+
+- name: Install the post-K3s VMware console refresh service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3slab-console-login.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Redraw the VMware text login after K3s loads networking modules
+      After=getty@tty1.service k3s.service k3s-agent.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/sleep 10
+      ExecStart=/usr/bin/systemctl try-restart getty@tty1.service
+
+      [Install]
+      WantedBy=multi-user.target
+  register: console_login_service
+
+- name: Enable the post-K3s VMware console refresh service
+  ansible.builtin.systemd_service:
+    name: k3slab-console-login.service
+    enabled: true
+    daemon_reload: "{{ console_login_service.changed }}"
 
 - name: Kubelet expects swap to be off
   ansible.builtin.assert:

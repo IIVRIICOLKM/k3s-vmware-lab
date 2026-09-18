@@ -2,6 +2,7 @@
 # Applies infra/terraform in two phases, because elsudano/vmworkstation 2.0.1 fails when it creates a VM powered on:
 #   1) VMs that are about to be created (or replaced) get state "off"; existing VMs keep their desired state.
 #   2) A normal apply then powers the new VMs on.
+#   3) Every managed VM is registered in the VMware Workstation UI library.
 # Usage: scripts/cluster-apply.sh [-auto-approve] [-replace=ADDR ...] [-var ...]
 #   -replace only applies to phase 1 (otherwise the VM would be replaced twice); -auto-approve is not given to plan.
 set -euo pipefail
@@ -29,3 +30,4 @@ if [[ "$new" != "[]" ]]; then
 fi
 log "phase 2: apply desired power state"
 "$TF" apply -input=false "${final_args[@]}"
+"$REPO_ROOT/scripts/register-vms.sh"

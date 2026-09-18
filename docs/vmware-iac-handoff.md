@@ -1,6 +1,6 @@
 # VMware Workstation IaC 프로젝트 인계서
 
-> 최종 갱신 2026-09-18. Rocky Linux 9.8 Server 무GUI 마이그레이션의 실행 명령·관찰·결과는 13장, 남은 위험은 14장에 있다.
+> 최종 갱신 2026-09-18. Rocky Linux 9.8 Server 무GUI 마이그레이션, 프로젝트 파일 완전성 검사, Workstation UI 자동 등록의 실행 명령·관찰·결과는 13장, 남은 위험은 14장에 있다.
 > IaC 저장소: `/home/lkm/Projects/k3s-vmware-lab` (이 문서의 사본은 저장소의 `docs/vmware-iac-handoff.md`).
 
 ## 1. 목적
@@ -8,7 +8,7 @@
 로컬 Linux 데스크톱에서 VMware Workstation Pro를 하이퍼바이저로 사용하고, 다음 세 도구의 역할을 분리해 K3s 실험 환경을 재현 가능하게 구축한다.
 
 - Packer: 운영체제가 설치된 기준 VM 이미지 생성
-- Terraform: VM 복제·등록·전원·가상 네트워크와 상태 관리
+- Terraform: VM 복제·전원·가상 네트워크와 상태 관리. UI 라이브러리 등록은 apply 직후 공식 vmrest API로 보완
 - Ansible: 게스트 운영체제와 K3s 및 애플리케이션 구성
 
 운영 대상은 VM 3대와 물리 GPU 호스트 1대로 구성된 K3s 클러스터다.
@@ -42,8 +42,8 @@
 | 노드 | 형태 | 자원 | 역할 |
 |---|---|---:|---|
 | k3s-server | VM | 2 vCPU, 3 GB RAM | K3s control plane |
-| worker-cpu-1 | VM | 2 vCPU, 6 GB RAM | Jenkins, Argo CD, 모니터링, MySQL |
-| worker-cpu-2 | VM | 2 vCPU, 3 GB RAM | API, 전처리, 장애 실험 대상 |
+| worker-cpu-1 | VM | 2 vCPU, 6 GB RAM | `platform` 라벨의 작업 노드. Jenkins·Argo CD·모니터링·MySQL은 향후 범위 |
+| worker-cpu-2 | VM | 2 vCPU, 3 GB RAM | `app` 라벨의 작업 노드. API·전처리는 향후 범위 |
 | gpu-host | 물리 Linux 호스트 | RTX 3090 24 GB | K3s agent, GPU 워크로드 직접 실행 |
 
 (갱신) 세 VM의 표준 게스트 OS는 **Rocky Linux 9.8 Server(그래픽 환경 없음)**다. DVD ISO의 `Server` 환경으로 골든 이미지를 만들고 Terraform으로 세 노드를 재생성한다(13.7–13.10).
@@ -63,8 +63,8 @@ Terraform + elsudano/vmworkstation 2.0.1
   ↓ HTTPS/REST
 vmrest 1.3.1 → VMware Workstation Pro 26.0.0
   ↓
-VM 3대 생성·등록·기동
-  ↓ Terraform output으로 IP/호스트 그룹 생성
+VM 3대 생성·기동 → vmrest 공식 API로 Workstation UI 등록
+  ↓ Terraform output의 이름·ID·그룹 + vmrest의 현재 IP
 Ansible inventory
   ↓
 K3s 및 노드별 서비스 구성
@@ -91,9 +91,10 @@ K3s 및 노드별 서비스 구성
 
 - SSH 준비 상태 확인
 - K3s server와 agent 구성
-- worker-cpu-1에 Jenkins, Argo CD, 모니터링, MySQL 배치
-- worker-cpu-2에 API와 전처리 구성
-- 물리 gpu-host에 K3s agent와 GPU 런타임 구성
+- 현재 구현: 세 VM의 Rocky 기본값, K3s server/agent, `platform`·`app` 노드 라벨
+- 향후 범위: worker-cpu-1의 Jenkins, Argo CD, 모니터링, MySQL
+- 향후 범위: worker-cpu-2의 API와 전처리
+- 별도 유지보수 범위: 물리 gpu-host의 K3s agent와 GPU 런타임
 - 반복 실행 시 결과가 변하지 않도록 멱등성 검증
 
 ## 5. Terraform Provider 결정
@@ -238,7 +239,7 @@ Packer 템플릿은 실행 결과물이 아니라 IaC 소스이므로 프로젝�
 └── secrets/     # vmrest·Ansible 비밀값, 권한 0700/0600
 ```
 
-(갱신) 실제 구성은 위 트리를 따르되 다음을 추가했다: 전체 실행 진입점 `scripts/entry.sh`, `scripts/lib/`(공통 함수, 버전 핀), `scripts/vmrest-start.sh`, `scripts/fetch-rocky-iso.sh`, `scripts/tf.sh`, `scripts/cluster-apply.sh`, `scripts/golden-build.sh`, `scripts/render-inventory.sh`, `infra/packer/plugins.sha256`, `infra/ansible/ansible.cfg`·`requirements.txt`. XDG 쪽에는 `ansible-venv/`, `~/.local/state/k3s-vmware-lab/{logs,backups,terraform/backups}`가 있다. Provider 검증에만 쓴 `smoke/` 기준 VM과 데이터는 Rocky 전환 때 삭제했다(13.11). 비밀값 디렉터리는 0700, 파일과 tfstate는 0600이다.
+(갱신) 실제 구성은 위 트리를 따르되 다음을 추가했다: 전체 실행 진입점 `scripts/entry.sh`, `scripts/lib/`(공통 함수, 버전 핀), `scripts/vmrest-start.sh`, `scripts/fetch-rocky-iso.sh`, `scripts/tf.sh`, `scripts/cluster-apply.sh`, `scripts/register-vms.sh`, `scripts/verify-project.sh`, `scripts/golden-build.sh`, `scripts/render-inventory.sh`, `infra/packer/plugins.sha256`, `infra/ansible/ansible.cfg`·`requirements.txt`. XDG 쪽에는 `ansible-venv/`, `~/.local/state/k3s-vmware-lab/{logs,backups,terraform/backups}`가 있다. Provider 검증에만 쓴 `smoke/` 기준 VM과 데이터는 Rocky 전환 때 삭제했다(13.11). 비밀값 디렉터리는 0700, 파일과 tfstate는 0600이다.
 
 이렇게 분리하면 Git 저장소를 삭제하거나 다른 장비로 clone해도 대용량 VM과 로컬 상태가 섞이지 않는다. Terraform과 Packer에는 위 경로를 변수로 전달하고 코드에 사용자별 절대 경로를 반복해서 하드코딩하지 않는다.
 
@@ -440,7 +441,7 @@ scripts/golden-build.sh 20260918-1   # 로그: ~/.local/state/k3s-vmware-lab/log
 - Kickstart는 HTTP 대신 **`OEMDRV` 라벨 보조 CD**의 `/ks.cfg`로 전달한다. 부팅 입력용 VNC는 127.0.0.1:5980–5989이고 LAN 수신 포트는 열지 않는다.
 - 빌드 VM은 vmnet8 DHCP 풀(.128–.254) 밖의 고정 IP(.10)를 사용한다. `finalize.sh`는 활성 NetworkManager 프로필을 MAC 기반 DHCP로 저장하되 현재 연결은 건드리지 않아 Packer SSH가 끊기지 않는다.
 - 게스트 유형은 Workstation 26이 실제 지원하는 `rockyLinux-64`, 하드웨어 버전 21, EFI, PVSCSI, NIC `custom/vmnet8`/`e1000`이다.
-- `finalize.sh`는 Rocky 9.8, NetworkManager, `vmtoolsd`, `multi-user.target`, GUI 패키지 부재를 검증하고 DNF 캐시·로그를 정리한다. `/etc/machine-id`와 SSH 호스트 키는 비워 첫 부팅 시 복제본마다 재생성한다.
+- `finalize.sh`는 Rocky 9.8, NetworkManager, `vmtoolsd`, `multi-user.target`, GUI 패키지 부재를 검증하고 DNF 캐시·로그를 정리한다. VMware 콘솔이 그래픽 부팅 화면에 머물지 않도록 모든 커널에서 `rhgb quiet`를 제거하고 `loglevel=3`을 넣는다. `/etc/machine-id`와 SSH 호스트 키는 비워 첫 부팅 시 복제본마다 재생성한다.
 - Packer가 만든 소문자 `displayname`은 vmrest 데이터소스 호환을 위해 해시 기록 전에 `displayName`으로 정규화한다. VMX/VMDK는 SHA-256 기록 후 0444로 잠근다.
 - 첫 검증 빌드는 OS 설치와 SSH 접속까지 통과한 뒤 Rocky Server에 기본 생성되지 않은 `/var/lib/dbus`에 machine-id 링크를 만들려다 실패했다. `finalize.sh`가 디렉터리를 명시적으로 만들게 수정하고 같은 버전을 다시 빌드해 10분 45초 만에 성공했다.
 - 결과 골든은 `k3slab-golden-rocky98-20260918-1`, vmrest ID `KIG21GN5DHTP9KGOVDMB4OUG5A46D1DH`다. 메타데이터는 Server profile·GUI 없음으로 기록됐고, NIC `custom/vmnet8`, `guestOS=rockyLinux-64`, ISO 분리, SHA-256 일치, 파일 모드 0444, 전원 off를 확인했다.
@@ -455,6 +456,7 @@ scripts/tf.sh plan -detailed-exitcode   # exit 0
 
 - `infra/terraform`: `for_each`로 `k3s-server`(2 vCPU/3GB), `worker-cpu-1`(2/6GB), `worker-cpu-2`(2/3GB). 골든 이미지는 데이터소스로 찾고, `precondition`으로 골든 이미지가 꺼져 있음을 강제한다. `sourceid`·`description`은 `ignore_changes`(골든 이미지가 새 버전으로 바뀌어도 기존 노드에 강제 전원 차단이 걸리지 않게 하고, 재구축은 `-replace`로 명시).
 - `cluster-apply.sh` 1단계에서 세 대를 꺼진 채 생성, 2단계에서 켰다. ID는 `k3s-server=8IHO6F95UCAN4UDRKGJVT2S6COE4POK2`, `worker-cpu-1=HU3K1UUA10SN1EMVKHBCB4HKTJSNMP8J`, `worker-cpu-2=GNH26I1RGKV315GNJFG2G3A51NIDOKJV`다. 재계획은 exit 0, `No changes`였다. 세 복제본의 MAC은 모두 고유했다(`00:0c:29:08:f1:e4`, `…:3d:6b:4c`, `…:25:78:82`). 게스트가 메모리를 지연 할당해 최종 사전 점검 시 호스트 가용 메모리는 19GB였다.
+- Provider 복제만으로는 세 노드가 Workstation GUI 라이브러리에 나타나지 않았다. `scripts/register-vms.sh`가 Terraform output의 VMX 경로를 검증하고 공식 `POST /vms/registration`을 호출하도록 추가했으며, `cluster-apply.sh`의 마지막 단계에서 자동 실행한다. 2026-09-18 기존 세 노드 중 누락됐던 항목을 등록했고 `~/.vmware/inventory.vmls`에서 세 경로를 모두 확인했다. 두 번째 실행은 `0 added, 3 already present`로 중복 없는 멱등성을 확인했다.
 - 사전 리허설: 같은 설정을 OS 없는 기준 VM과 노드당 512MB로 먼저 적용·삭제해 2단계 로직을 검증했다. 이때 **`terraform.tfstate`가 0664로 생성되는 문제**를 발견해 `tf.sh`에 `umask 077`을 넣고 state 디렉터리 0700, state·백업 0600으로 고쳤다(`preflight.sh`가 검사).
 
 ### 13.9 Terraform output ↔ Ansible inventory (8장 8번)
@@ -476,6 +478,8 @@ ansible-playbook playbooks/k3s.yml         # 2회 실행
 ```
 
 - `bootstrap.yml`(역할 `common`)은 Rocky 9.8과 SELinux enforcing을 먼저 단언한다. DNF로 공통 패키지·`container-selinux`·`selinux-policy-base`를 설치하고, SHA-256이 고정된 Rancher 공개 키와 `k3s-selinux-1.6-1.el9` RPM을 검증·설치한다. 이어서 호스트명, `/etc/hosts`, `overlay`·`br_netfilter`, 포워딩·bridge-nf sysctl, 스왑 없음, `chronyd`를 구성한다. K3s의 RHEL 계열 권고에 따라 VM의 `firewalld`는 중지·비활성화한다.
+- Workstation 콘솔이 로그인 화면까지 못 가는 것처럼 보인 현상은 게스트 부팅 실패가 아니었다. 세 VM의 `getty@tty1`, SSH, K3s는 정상이었지만 K3s가 `ip_tables`·`ip_set`을 로드하면서 Rocky 커널의 deprecated-driver 경고가 먼저 표시된 로그인 프롬프트를 밀어냈다. `kernel.printk = 3 4 1 3`, 커널 인자 `loglevel=3`, `rhgb quiet` 제거를 공통 역할에 넣었고, 서버처럼 경고가 늦게 나오는 경우까지 처리하도록 K3s 기동 뒤 10초 후 tty1을 다시 그리는 `k3slab-console-login.service`를 매 부팅 실행한다.
+- 워커 1 → 워커 2 → 서버 순으로 롤링 재부팅해 실제 `/proc/cmdline`과 VGA 텍스트 버퍼(`/dev/vcs1`)를 검사했다. 세 노드 모두 커널 인자에서 `rhgb quiet`가 사라지고 `loglevel=3`이 적용됐으며, 부팅 약 25초 안에 마지막 줄이 `<노드명> login:`으로 유지됐다. 재부팅 뒤 세 노드 `Ready`, 시스템 파드 전부 `Running` 또는 `Completed`, `bootstrap.yml` 재실행 `changed=0`을 확인했다.
 - `k3s.yml`: K3s `v1.36.4+k3s1`을 GitHub 릴리스 바이너리 SHA-256(`835873f3…`)으로 검증해 설치한다. systemd 유닛과 `/etc/rancher/k3s/config.yaml`(0600)은 Ansible이 관리하며 Rocky 노드에는 `selinux: true`를 기록한다. 조인 토큰은 `secrets/k3s-token`(0600), kubeconfig는 `secrets/kubeconfig`(0600)에 새로 생성한다. 노드 라벨은 `platform`(worker-cpu-1)·`app`(worker-cpu-2)이다.
 - 첫 `bootstrap.yml`은 노드당 `changed=12`, 두 번째는 전 노드 `changed=0`이었다. 첫 K3s 적용에서 서버는 정상 기동했지만 Ansible의 root PATH에 `/usr/local/bin`이 없어 준비 확인 명령만 실패했다. 플레이북의 모든 검증 명령을 `/usr/local/bin/k3s` 절대경로로 수정한 뒤 서버·에이전트 설치와 합류가 성공했고, 두 번째 `k3s.yml`은 서버·워커 모두 `changed=0`이었다.
 - 최종 상태는 세 노드 모두 `Ready`, OS `Rocky Linux 9.8 (Blue Onyx)`, K3s `v1.36.4+k3s1`이다. 시스템 파드 9개는 모두 `Running` 또는 `Completed`다. 세 노드는 SELinux enforcing, `multi-user.target`, 스왑 0, GUI 패키지 없음, NetworkManager·vmtoolsd·chronyd enabled/active, firewalld disabled/inactive이며, K3s 프로세스는 `container_runtime_t`, 바이너리는 `container_runtime_exec_t` 컨텍스트다.
@@ -491,7 +495,8 @@ ansible-playbook playbooks/k3s.yml         # 2회 실행
 - 소스에서는 이전 자동설치 템플릿과 Packer HCL을 삭제하고 Rocky Kickstart·Packer HCL·ISO 검증 스크립트로 대체했다. Terraform 기본 골든 이름, provider 스모크 테스트 기준 이름, README, 인계서와 다이어그램도 같은 기준으로 바꿨다.
 - 최종 `scripts/preflight.sh`는 `0 FAIL, 0 WARN`, Terraform 재계획은 exit 0 `No changes`, 골든 이미지 SHA-256은 복제 뒤에도 불변이었다.
 - 셸 `bash -n`, Packer `fmt -check`·필수 변수 포함 `validate`, 렌더링한 Kickstart의 `ksvalidator -v RHEL9`, Terraform `fmt -check`·`validate`, 모든 Ansible playbook `--syntax-check`도 통과했다.
-- 전체 흐름은 `scripts/entry.sh` 한 명령으로 9단계를 순서대로 실행하도록 묶었다. 각 단계는 실행 뒤 소요 시간을 기록하고 마지막에 표와 합계를 출력한다. README의 신규 구축 기준은 ISO 최초 다운로드를 제외한 **16분**이며 이 중 골든 이미지 빌드가 11분으로 가장 길다. 정상 가동 상태 재실행 실측은 ISO 확인 38초, preflight 50초, SSH 확인 6초, OS+K3s 20초를 포함해 총 1분 56초였고 Terraform `No changes`, Ansible `changed=0`이었다. 사용자 시나리오 이후는 쉬운 용어 중심으로 재구성했다.
+- `scripts/verify-project.sh`를 추가해 README·인계서·다이어그램·Packer/Terraform/Ansible 소스·실행 스크립트 등 필수 파일 50개, 빈 파일, 실행 권한, 모든 Bash 문법, Git 추적 파일 삭제 여부를 읽기 전용으로 검사한다. `preflight.sh`가 이를 첫 섹션에서 자동 실행한다.
+- 전체 흐름은 `scripts/entry.sh` 한 명령으로 9단계를 순서대로 실행하도록 묶었다. 각 단계는 실행 뒤 소요 시간을 기록하고 마지막에 표와 합계를 출력한다. README의 신규 구축 기준은 ISO 최초 다운로드를 제외한 **16분**이며 이 중 골든 이미지 빌드가 11분으로 가장 길다. 파일·UI 검사 추가 후 정상 가동 상태 재실행 실측은 ISO 확인 38초, preflight 52초, UI 등록 포함 Terraform 단계 1초, SSH 확인 6초, OS+K3s 22초를 포함해 총 1분 59초였고 Terraform `No changes`, UI 등록 `0 added, 3 already present`, Ansible `changed=0`이었다. 사용자 시나리오 이후는 쉬운 용어 중심으로 재구성했다.
 
 ## 14. 남은 위험과 후속 조치
 
@@ -502,13 +507,13 @@ ansible-playbook playbooks/k3s.yml         # 2회 실행
 | 3 | Provider의 모든 수정은 VM 강제 전원 차단을 동반한다. | CPU·메모리·전원 변경 시 게스트 데이터 손상 위험(특히 K3s 서버) | 변경 전 Ansible로 게스트를 정상 종료한다. README에 명시. |
 | 4 | Provider는 `https = true`에서도 인증서를 검증하지 않는다. | TLS가 서버 인증을 하지 않음 | vmrest는 루프백 전용이고 자격증명이 필요하다. `vmrest-start.sh`와 `preflight.sh`가 바인딩을 강제·검사한다. |
 | 5 | 노드 IP는 vmnet8 DHCP 임대(30분/최대 2시간)다. MAC 기반 클라이언트 ID라 같은 VM은 대체로 같은 주소를 받지만 보장되지 않는다. | K3s 에이전트는 서버 IP로 접속하므로 서버 주소가 바뀌면 재접속 필요 | 주소가 바뀌면 `render-inventory.sh` → `site.yml` 재실행. 영구 해결은 `/etc/vmware/vmnet8/dhcpd/dhcpd.conf` 예약(root 필요, 유지보수 작업)이나 게스트 고정 IP. |
-| 6 | Terraform 관리 VM은 Workstation GUI 라이브러리에 나타나지 않는다. | GUI에서 열어 조작하면 state와 어긋날 수 있음 | 7장 6번 제약 유지. 관찰은 `vmrun -T ws list`, vmrest API, `scripts/tf.sh show`로 한다. |
+| 6 | Provider 복제만으로는 Terraform 관리 VM이 Workstation GUI 라이브러리에 나타나지 않는다. | VM은 실행 중인데 UI에서 찾을 수 없음 | 해결 완료: `cluster-apply.sh`가 `scripts/register-vms.sh`를 호출해 공식 vmrest 등록 API로 누락 항목만 멱등 등록한다. preflight도 VMX와 UI 항목을 검사한다. |
 | 7 | 물리 `gpu-host`의 K3s 합류는 수행하지 않았다. | 클러스터에 GPU 노드 없음 | `playbooks/gpu-host.yml`은 `-e host_changes_allowed=true` 없이는 권한 상승 전에 중단한다. NVIDIA Container Toolkit 설치 후 콘솔 유지보수 창에서 `-K`와 함께 실행한다. |
 | 8 | Workstation 사용자 설정 두 가지를 바꿨다(`prefvmx.defaultVMPath`, `pref.autoSoftwareUpdatePermission=deny`). | GUI의 새 VM 기본 위치가 XDG 경로로 바뀌고 자동 업데이트 확인이 꺼짐 | 원본은 `~/.local/state/k3s-vmware-lab/backups/`. 되돌리려면 해당 줄 삭제 또는 백업 복원(스모크 테스트 재검증 필요). |
-| 9 | Git 저장소는 초기화·스테이징까지만 했다. | 커밋 이력 없음 | git `user.name`/`user.email`이 설정돼 있지 않고, git 설정은 임의로 바꾸지 않았다. 설정 후 `git commit`만 하면 된다. |
+| 9 | 프로젝트 소스가 누락되거나 실행 권한이 사라질 수 있다. | 다른 장비에서 구축 중 뒤늦게 실패 | 해결 강화: `scripts/verify-project.sh`가 필수 파일 50개·빈 파일·실행 권한·Bash 문법·Git 추적 파일 삭제를 검사하며 preflight가 자동 호출한다. |
 | 10 | Terraform state는 로컬 단일 파일이다. | 디스크 손상 시 유실 | `tf.sh`가 변경 명령 전 0600 백업을 30개까지 순환 보관한다. |
 | 11 | vmrest는 사용자 프로세스라 재부팅·로그아웃 시 멈춘다. | Terraform 실행 불가 | 작업 전 `scripts/vmrest-start.sh`. 상시 서비스화는 하지 않았다(영구 설정 변경이므로 사용자 판단). |
-| 12 | Workstation 인벤토리에 디렉터리가 없는 `Server(B)` 잔존 항목이 있다. | 기능 영향 없음 | 사용자 소유 항목이라 그대로 두었다. |
+| 12 | Workstation UI 캐시가 외부 등록 직후 화면을 늦게 갱신할 수 있다. | 등록은 됐지만 열린 UI에 즉시 안 보일 수 있음 | `scripts/register-vms.sh` 결과와 `inventory.vmls`의 세 VMX 경로를 기준으로 확인하고, 필요하면 Workstation 라이브러리 화면을 다시 연다. VM을 재생성하지 않는다. |
 | 13 | 골든 이미지 빌드는 vmnet8의 고정 주소(.10)를 쓴다. | 그 주소를 다른 장치가 쓰면 빌드 불가 | `golden-build.sh`가 빌드 전 응답 여부를 확인하고 거부한다. `BUILD_IP=`로 바꿀 수 있다. |
 | 14 | 클러스터 VM 3대는 가동 상태로 남겨 두었다(설정 합계 12GB, 게스트 지연 할당으로 실사용은 더 적음). | 원격 세션 중 호스트 메모리 사용 | 정지는 게스트 정상 종료 후 상태를 맞춘다: `ansible vms -b -m command -a 'systemctl poweroff'` → `scripts/tf.sh apply -var power_state=off`. 재기동은 `scripts/cluster-apply.sh` 후 `render-inventory.sh`. |
 | 15 | Rocky DVD ISO는 약 15.2GB로 크다. | 캐시와 백업 공간 사용 증가 | ISO는 한 벌만 `iso-cache`에 두고 `fetch-rocky-iso.sh`의 서명·크기·SHA-256 검증을 통과한 파일만 사용한다. 스모크 테스트는 Rocky 골든을 기준으로 사용하므로 별도 기준 VM을 두지 않는다. |

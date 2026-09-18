@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisions the whole lab by calling the stage scripts in order:
-#   vmrest-start -> fetch-rocky-iso -> preflight -> golden-build -> tf init -> cluster-apply -> render-inventory
+#   vmrest-start -> fetch-rocky-iso -> preflight -> golden-build -> tf init -> cluster-apply (+ Workstation UI registration) -> render-inventory
 #   -> ansible ping.yml -> ansible site.yml
 # Every stage is re-runnable, so the same command builds the lab the first time and brings it back later
 # (for example after a host reboot). If a stage fails, fix the cause and run it again.
@@ -87,7 +87,7 @@ else
 fi
 
 run "Terraform 준비" scripts/tf.sh init
-run "VM 상태 맞춤" scripts/cluster-apply.sh -auto-approve
+run "VM 상태 + UI 목록" scripts/cluster-apply.sh -auto-approve
 run "IP 목록 생성" scripts/render-inventory.sh
 
 # shellcheck disable=SC1091

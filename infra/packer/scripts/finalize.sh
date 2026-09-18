@@ -10,6 +10,10 @@ systemctl set-default multi-user.target
 ! rpm -q gnome-shell
 ! rpm -q xorg-x11-server-Xorg
 
+# VMware should hand off directly to tty1. K3s loads deprecated iptables/ipset modules whose warning-level messages
+# would otherwise scroll the login prompt off the local console.
+grubby --update-kernel=ALL --remove-args="rhgb quiet" --args="loglevel=3"
+
 # Keep the build's static address active until Packer shuts the VM down, but make the saved NetworkManager profile use
 # DHCP on the next boot. Clear interface/MAC binding because the provider gives every clone a new NIC and MAC.
 connection=$(nmcli -t -f UUID,TYPE connection show --active | awk -F: '$2 == "802-3-ethernet" || $2 == "ethernet" {print $1; exit}')
