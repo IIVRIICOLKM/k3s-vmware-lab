@@ -34,6 +34,13 @@ VMREST_ACCEPT="Accept: application/vnd.vmware.vmw.rest-v1+json"
 VMREST_CT="Content-Type: application/vnd.vmware.vmw.rest-v1+json"
 
 # --- 3) 고정 버전 목록(PIN_* 변수) 불러오기 → scripts/lib/pinned-versions.env ---
+# 이 파일은 Git에 올리지 않는다(.gitignore의 *.env). 새로 받은 저장소에는 없으므로,
+# README "환경 파일" 안내대로 메일로 받아 같은 위치에 둔다. 없으면 여기서 이유를 알려 주고 멈춘다.
+# (아래 log/die 함수가 아직 정의되기 전이라 printf로 직접 에러 출력)
+if [[ ! -f "$REPO_ROOT/scripts/lib/pinned-versions.env" ]]; then
+  printf 'FATAL: missing scripts/lib/pinned-versions.env (not in Git; see README: 환경 파일)\n' >&2
+  exit 1
+fi
 # shellcheck source=pinned-versions.env
 source "$REPO_ROOT/scripts/lib/pinned-versions.env"
 

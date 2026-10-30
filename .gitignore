@@ -32,3 +32,26 @@ __pycache__/
 
 # Detailed local-only README (kept out of Git; synced to Notion)
 README.local.md
+
+# Environment files and anything that must stay encrypted: never committed.
+# They are handed out separately on request (see README: 환경 파일).
+*.env
+.env
+.env.*
+!*.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*_ed25519
+*_ed25519.pub
+id_rsa*
+id_ecdsa*
+*kubeconfig*
+*.kubeconfig
+k3s-token
+*-token
+
+# Local Terraform output dumps
+/outnodes.json
