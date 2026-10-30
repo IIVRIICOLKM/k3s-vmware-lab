@@ -29,3 +29,6 @@ packer_cache/
 secrets/
 *.retry
 __pycache__/
+
+# Detailed local-only README (kept out of Git; synced to Notion)
+README.local.md

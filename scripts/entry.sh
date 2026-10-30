@@ -42,9 +42,9 @@ golden_name=$(sed -n '/^variable "golden_vm_name"/,/^}/s/^ *default *= *"\(.*\)"
 [[ "$golden_name" == "$GOLDEN_PREFIX"-* ]] || die "golden_vm_name default in infra/terraform/variables.tf must start with $GOLDEN_PREFIX-"
 GOLDEN_VERSION="${golden_name#"$GOLDEN_PREFIX"-}"
 
-# --- 3) Ansible 가상환경(venv)이 준비돼 있는지 확인 (없으면 README "사전 준비" 안내 후 종료) ---
+# --- 3) Ansible 가상환경(venv)이 준비돼 있는지 확인 (없으면 README "시작하기 > 1. 준비" 안내 후 종료) ---
 VENV="$LAB_DATA_DIR/ansible-venv"
-[[ -f "$VENV/bin/activate" ]] || die "missing $VENV (see README: 사전 준비)"
+[[ -f "$VENV/bin/activate" ]] || die "missing $VENV (see README: 시작하기 > 1. 준비)"
 
 # --- 4) 단계 실행·시간 측정 도구 ---
 # STEPS : 전체 단계 수 / step : 지금 몇 번째 단계인지

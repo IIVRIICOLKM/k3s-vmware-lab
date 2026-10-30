@@ -50,7 +50,7 @@ die() { log "FATAL: $*" >&2; exit 1; }
 #   - 마지막 줄: TF_VAR_<이름> 환경변수 = Terraform 변수 var.<이름> 으로 전달된다
 load_vmrest_env() {
   local f="$LAB_SECRETS_DIR/vmrest.env"
-  [[ -f "$f" ]] || die "missing $f (see README: vmrest credentials)"
+  [[ -f "$f" ]] || die "missing $f (see README: 시작하기 > 1. 준비)"
   [[ "$(stat -c %a "$f")" == "600" ]] || die "$f must be mode 600"
   # shellcheck disable=SC1090
   source "$f"

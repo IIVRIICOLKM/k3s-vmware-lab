@@ -41,7 +41,7 @@ Jenkins(10–12주), Argo CD(11–13주), Prometheus·Grafana(12–14주), MySQL
   ansible k3s_server -b -m ansible.builtin.command -a '/usr/local/bin/k3s kubectl get nodes -o wide'
   ```
 - [x] (10/30 브랜치 `week08-catchup`에 커밋, push는 직접) 쉬는 동안 바뀐 작업을 커밋한다. 스크립트 14개의 한국어 주석이 아직 커밋 전이다. 추적되지 않은 `outnodes.json`은 커밋에서 빼거나 지운다.
-- [x] (README 시나리오 3과 `preflight.sh` WARN으로 안내. 10/15에 실제로 다시 발생해 콘솔 재빌드로 복구) 다음 커널 업데이트에 대비한다. `preflight.sh`가 "newest installed kernel ... has no vmmon.ko"라는 WARN을 내면, 재부팅 전에 **콘솔에서** `sudo vmware-modconfig --console --install-all`을 실행한다.
+- [x] (상세 README(로컬·Notion) 시나리오 3과 `preflight.sh` WARN으로 안내. 10/15에 실제로 다시 발생해 콘솔 재빌드로 복구) 다음 커널 업데이트에 대비한다. `preflight.sh`가 "newest installed kernel ... has no vmmon.ko"라는 WARN을 내면, 재부팅 전에 **콘솔에서** `sudo vmware-modconfig --console --install-all`을 실행한다.
 
 ## 1. [밀림] 물리 GPU 호스트 K3s 합류 — 5주차
 
@@ -70,7 +70,7 @@ Jenkins(10–12주), Argo CD(11–13주), Prometheus·Grafana(12–14주), MySQL
   ```
   - 이 명령이 하는 일: toolkit 설치 → NetworkManager·ufw 설정 → 합류 → Ready 대기 → device plugin 배포 → `nvidia.com/gpu` 확인 → 스모크 테스트(`nvidia-smi`와 DNS)
 - [x] (10/6 완료) 결과 확인: `get nodes`에서 4대 Ready, gpu-host INTERNAL-IP가 172.16.133.1, `nvidia.com/gpu: 1`, 스모크 테스트 출력에 RTX 3090
-- [x] (README "운영할 때 꼭 지킬 것" 11번) 운영 규칙을 메모한다. 호스트가 노드가 되면 게임 같은 데스크톱 GPU 사용과 학습 파드가 24 GB VRAM을 나눠 쓴다. 실험 중에는 게임을 하지 않는다.
+- [x] (상세 README(로컬·Notion) "운영할 때 꼭 지킬 것" 11번) 운영 규칙을 메모한다. 호스트가 노드가 되면 게임 같은 데스크톱 GPU 사용과 학습 파드가 24 GB VRAM을 나눠 쓴다. 실험 중에는 게임을 하지 않는다.
 
 ## 2. K3s 실습 5개 — 6주차 마감 (제안서 8번 슬라이드)
 
@@ -134,7 +134,7 @@ Jenkins(10–12주), Argo CD(11–13주), Prometheus·Grafana(12–14주), MySQL
 
 - [x] (`docs/progress-week08.md` "일정 재조정") 5주차 진행보고에 일정 재조정을 적는다. 3~4주차에 진행이 없었던 점, 호스트 합류가 늦어진 점, 그 영향(6주차에 K3s 실습과 레지스트리를 같이 진행)을 쓴다.
 - [x] (`docs/progress-week08.md` "제안서 대비 바뀐 점", 문구 확인 필요) 하이퍼바이저 변경 근거를 1~2줄로 정리한다. 제안서는 KVM/libvirt인데 구현은 VMware Workstation이다. 노드 중단 실험 명령이 `virsh`에서 `vmrun`으로 바뀐 것도 함께 적는다.
-- [x] (Workstation 화면에서 Remove로 정리, 직접 편집 금지와 일치) README 시나리오 3을 정리한다. `inventory.vmls`를 직접 정리하라는 안내를 "`scripts/register-vms.sh` 또는 vmrest API로 정리"로 바꾸면, "운영할 때 꼭 지킬 것" 9번("평소에 직접 편집하지 않는다")과 어긋나지 않는다.
+- [x] (Workstation 화면에서 Remove로 정리, 직접 편집 금지와 일치) 상세 README(로컬·Notion) 시나리오 3을 정리한다. `inventory.vmls`를 직접 정리하라는 안내를 "`scripts/register-vms.sh` 또는 vmrest API로 정리"로 바꾸면, "운영할 때 꼭 지킬 것" 9번("평소에 직접 편집하지 않는다")과 어긋나지 않는다.
 
 ## 순서 제안
 
@@ -156,7 +156,7 @@ Jenkins(10–12주), Argo CD(11–13주), Prometheus·Grafana(12–14주), MySQL
 
 | 일정 항목 | 상태 |
 |---|---|
-| K3s 실습 5개 (4–6주) | 준비 완료. `scripts/k3s-lab.sh`, `infra/k8s/labs/`, README 시나리오 10. 클러스터 복구 뒤 실행 |
+| K3s 실습 5개 (4–6주) | 준비 완료. `scripts/k3s-lab.sh`, `infra/k8s/labs/`, 상세 README(로컬·Notion) 시나리오 10. 클러스터 복구 뒤 실행 |
 | 레지스트리 (5–7주) | 준비 완료. `infra/k8s/registry.yaml`: worker-cpu-1, 고정 ClusterIP 10.43.0.50. 노드 `registries.yaml`은 `k3s_node` 역할에 추가 |
 | 이미지 빌드 (5–7주) | 준비 완료. `scripts/image-build.sh`: Kaniko를 gpu-host에서 실행, 태그 불변, `docs/image-builds.md`에 기록 |
 | Helm (5–7주) | **완료.** v4.3.1을 `~/.local/bin`에 설치(SHA-256 검증, preflight에서 버전 검사). `charts/k3slab-workload` 학습·추론 values 모두 `helm lint` 통과 |
