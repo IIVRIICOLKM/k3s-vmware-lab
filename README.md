@@ -16,14 +16,9 @@
 
 ## 개요
 
-진행 상태: **진행 중**
+실험 환경을 매번 다시 만드는 비용을 줄이는 데서 출발합니다. 특정 모델보다는 작업을 실행하고, 멈추고, 이어서 돌리고, 결과를 확인하는 공통 흐름에 초점을 둡니다.
 
-실험 환경을 매번 손으로 다시 만드는 비용을 줄이는 것이 출발점입니다. 특정 모델보다는 작업의 실행·중단·재개·결과 확인이라는 공통 흐름을 다룹니다.
-
-### 하드웨어
-
-- 호스트 1대: `AMD Ryzen 7 5700X` (8C/16T), `32GB RAM`, `NVIDIA GeForce RTX 3090 24GB`
-- 노드: 가상머신 3대(`k3s-server`, `worker-cpu-1`, `worker-cpu-2`) + 물리 호스트(`gpu-host`)
+### 구성도
 
 ```mermaid
 flowchart LR
@@ -65,6 +60,7 @@ flowchart LR
 
 | 항목 | 기준 |
 |---|---|
+| 하드웨어 (검증 환경) | `AMD Ryzen 7 5700X` 8C/16T, `32GB RAM`, `NVIDIA GeForce RTX 3090 24GB` |
 | OS | Linux x86_64 (검증: Ubuntu 26.04 LTS) |
 | 메모리 / 디스크 | 가용 메모리 14GB 이상 / 데이터 경로 여유 40GB 이상 |
 | GPU | NVIDIA 드라이버 580 계열 (CUDA 13.0) |
@@ -102,19 +98,10 @@ scripts/entry.sh
 ### 3. GPU 노드 합류 (호스트 콘솔)
 
 ```bash
-source ~/.local/share/k3s-vmware-lab/ansible-venv/bin/activate
 cd infra/ansible && ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 ```
 
-### 4. 워크로드 실행
-
-```bash
-export KUBECONFIG=~/.config/k3s-vmware-lab/secrets/kubeconfig
-kubectl apply -f infra/k8s/registry.yaml
-scripts/image-build.sh apps/train train-worker v0.3
-helm upgrade --install train-demo charts/k3slab-workload \
-  -f charts/k3slab-workload/values-train.yaml --set train.jobId=demo
-```
+워크로드는 `charts/k3slab-workload`의 학습·추론 템플릿으로 실행합니다.
 
 ## 프로젝트 구조
 
