@@ -70,7 +70,9 @@ flowchart LR
 | 기타 CLI | `jq`, `curl`, `gpg`, `openssl`, `xorriso`, `ip`, `ss`, `ssh-keygen` |
 | 네트워크 | VMware NAT `vmnet8` = `172.16.133.0/24` |
 
-고정 버전 전체는 `scripts/lib/pinned-versions.env`에 있습니다.
+### 환경 파일
+
+고정 버전 목록(`scripts/lib/pinned-versions.env`) 같은 env 파일과 인증서·키·접속 정보처럼 암호화가 필요한 파일은 저장소에 포함하지 않습니다. 필요하면 [djrlee1@naver.com](mailto:djrlee1@naver.com)으로 메일을 보내 주시면 따로 전달해 드립니다. 받은 파일은 안내받은 경로에 그대로 두면 됩니다.
 
 ## 시작하기
 
