@@ -3,7 +3,9 @@
     name: k3s_node
   vars:
     k3s_mode: agent
-    k3s_config:
+    # Per-host additions (e.g. node-ip/flannel-iface on the GPU host) come from k3s_extra_config; the VMs set none.
+    k3s_config: "{{ k3s_agent_base_config | combine(k3s_extra_config | default({})) }}"
+    k3s_agent_base_config:
       node-name: "{{ inventory_hostname }}"
       server: "https://{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}:6443"
       token: "{{ lookup('ansible.builtin.password', k3s_token_file ~ ' length=48 chars=ascii_letters,digits') }}"

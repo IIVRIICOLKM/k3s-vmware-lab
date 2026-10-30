@@ -1,0 +1,6 @@
+apiVersion: v2
+name: k3slab-workload
+description: Run template for k3s-vmware-lab workloads (proposal slide 5) - a training Job or an inference Deployment.
+type: application
+version: 0.1.0
+appVersion: "0.1"

@@ -1,0 +1,12 @@
+# Training run template. Usage:
+#   helm upgrade --install train-<id> charts/k3slab-workload -f charts/k3slab-workload/values-train.yaml \
+#     --set train.jobId=<id> [--set image.tag=v0.1 --set model.version=v0 --set train.epochs=20]
+kind: train
+image:
+  repository: registry.k3slab.local:5000/train-worker
+  tag: v0.3
+model:
+  version: v0
+train:
+  epochs: 10
+  stepsPerEpoch: 200

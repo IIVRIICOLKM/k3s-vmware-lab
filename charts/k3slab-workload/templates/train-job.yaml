@@ -1,0 +1,49 @@
+{{- if eq .Values.kind "train" }}
+{{- $id := required "train.jobId is required (one job id per training run)" .Values.train.jobId }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]{0,40}[a-z0-9])?$" $id) }}
+{{- fail "train.jobId must be lowercase letters, digits and '-' (max 42 chars)" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train-{{ $id }}
+  labels:
+    {{- include "k3slab.labels" . | nindent 4 }}
+    k3slab.io/job-id: {{ $id }}
+spec:
+  backoffLimit: {{ .Values.train.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "k3slab.labels" . | nindent 8 }}
+        k3slab.io/job-id: {{ $id }}
+    spec:
+      restartPolicy: Never
+      # Time to finish the current step and write the SIGTERM checkpoint.
+      terminationGracePeriodSeconds: 60
+      {{- include "k3slab.gpuPlacement" . | trim | nindent 6 }}
+      containers:
+        - name: train
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --job-id={{ $id }}
+            - --model-version={{ .Values.model.version }}
+            - --epochs={{ .Values.train.epochs }}
+            - --steps-per-epoch={{ .Values.train.stepsPerEpoch }}
+            - --batch-size={{ .Values.train.batchSize }}
+            - --epoch-sleep={{ .Values.train.epochSleep }}
+            - --checkpoint-dir=/checkpoints
+          env:
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+          {{- include "k3slab.resources" . | trim | nindent 10 }}
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /checkpoints
+      volumes:
+        - name: checkpoints
+          hostPath:
+            path: {{ .Values.checkpoints.hostPath }}
+            type: DirectoryOrCreate
+{{- end }}

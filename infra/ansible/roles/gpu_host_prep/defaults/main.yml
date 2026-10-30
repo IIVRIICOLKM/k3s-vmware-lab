@@ -1,0 +1,12 @@
+# Set in group_vars/gpu_nodes.yml.
+nvidia_ctk_version: ""
+nvidia_ctk_gpgkey_sha256: ""
+nvidia_ctk_packages:
+  - nvidia-container-toolkit
+  - nvidia-container-toolkit-base
+  - libnvidia-container-tools
+  - libnvidia-container1
+
+# K3s defaults: pod and service CIDRs (K3s docs recommend allowing both through ufw).
+k3s_cluster_cidr: 10.42.0.0/16
+k3s_service_cidr: 10.43.0.0/16

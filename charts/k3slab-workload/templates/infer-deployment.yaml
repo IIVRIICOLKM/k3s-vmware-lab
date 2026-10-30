@@ -1,0 +1,82 @@
+{{- if eq .Values.kind "infer" }}
+{{- $modelJob := required "infer.modelJobId is required (the training job whose model.k3sm to serve)" .Values.infer.modelJobId }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "k3slab.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.infer.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      k3slab.io/kind: infer
+  template:
+    metadata:
+      labels:
+        {{- include "k3slab.labels" . | nindent 8 }}
+    spec:
+      {{- include "k3slab.gpuPlacement" . | trim | nindent 6 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.infer.port }}
+          env:
+            - name: MODEL_VERSION
+              value: {{ .Values.model.version | quote }}
+            - name: MAX_QUEUE
+              value: {{ .Values.infer.queueSize | quote }}
+            - name: MAX_BATCH
+              value: {{ .Values.infer.maxBatch | quote }}
+            - name: TIMEOUT_MS
+              value: {{ .Values.infer.timeoutMs | quote }}
+            - name: WORKER_THREADS
+              value: {{ .Values.infer.threads | quote }}
+            - name: WORK_MS
+              value: {{ .Values.infer.workMs | quote }}
+            - name: PORT
+              value: {{ .Values.infer.port | quote }}
+            - name: MODEL_PATH
+              value: /models/{{ $modelJob }}/model.k3sm
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.infer.port }}
+            periodSeconds: 5
+          # Keep serving for a few seconds after the pod is marked for deletion, so every node's kube-proxy drops it
+          # from the Service first; otherwise new connections can still be sent to a pod that has already exited
+          # and hang (seen during the 2026-10-30 rollout between benchmark runs).
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          {{- include "k3slab.resources" . | trim | nindent 10 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: models
+          hostPath:
+            path: {{ .Values.checkpoints.hostPath }}
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "k3slab.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    k3slab.io/kind: infer
+  ports:
+    - port: {{ .Values.infer.port }}
+      targetPort: {{ .Values.infer.port }}
+{{- end }}

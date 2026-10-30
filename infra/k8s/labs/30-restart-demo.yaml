@@ -1,0 +1,18 @@
+# Lab 4 (container restart): runs until /tmp/crash exists, then exits 1. scripts/k3s-lab.sh creates that file with
+# kubectl exec; the kubelet restarts the container in the same pod and RESTARTS goes to 1. A restarted container
+# starts from a clean filesystem, so it does not crash again.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restart-demo
+  namespace: k3slab-lab
+spec:
+  restartPolicy: Always
+  containers:
+    - name: app
+      image: docker.io/library/busybox:1.37.0
+      command: ["sh", "-c", "echo started; while [ ! -f /tmp/crash ]; do sleep 1; done; echo crashing; exit 1"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 8Mi

@@ -1,0 +1,52 @@
+# Common values. values-train.yaml / values-infer.yaml pick the kind and override only what differs.
+# Record the Dockerfile, image tag and the values file together for every run (proposal slide 9).
+
+# train -> batch/v1 Job (apps/train/train.py) | infer -> Deployment + Service (C++ worker, weeks 8-11)
+kind: train
+
+image:
+  repository: registry.k3slab.local:5000/train-worker
+  tag: v0.3
+  pullPolicy: IfNotPresent
+
+model:
+  version: v0
+
+# GPUs per pod. The cluster has one (gpu-host); a second GPU pod waits in Pending.
+gpu: 1
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# GPU workloads run only on gpu-host: select it and tolerate its nvidia.com/gpu taint.
+runtimeClassName: nvidia
+nodeSelector:
+  k3slab.io/role: gpu
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+train:
+  jobId: ""            # required; one job id = one Job. Reusing a finished id returns its DONE status.
+  epochs: 10
+  stepsPerEpoch: 200
+  batchSize: 256
+  epochSleep: 0
+  backoffLimit: 6      # pod deletion/SIGTERM counts as a failed attempt; the retry resumes from the checkpoint
+
+# Checkpoints and exported models on gpu-host (survive pod deletion). Training writes <jobId>/...; inference reads
+# <modelJobId>/model.k3sm from here, read-only.
+checkpoints:
+  hostPath: /var/lib/k3slab/checkpoints
+
+infer:
+  modelJobId: ""       # required; serve the model exported by this training job (<checkpoints>/<id>/model.k3sm)
+  replicas: 1
+  queueSize: 100       # requests beyond this are rejected immediately (HTTP 429)
+  maxBatch: 8          # requests taken from the queue and run together
+  timeoutMs: 2000      # requests that waited longer fail with HTTP 504
+  threads: 2           # fixed worker threads (bounded VRAM use)
+  workMs: 20           # fixed cost per batch, a stand-in for one GPU call until inference runs on the GPU
+  port: 8080

@@ -1,5 +1,6 @@
-# Joins the physical GPU host as a K3s agent. NOT part of site.yml: the host is operated remotely and k3s-agent adds a
-# service plus CNI/iptables rules to its network stack. Run it only at the console, during a maintenance window:
+# Joins the physical GPU host as a K3s agent. NOT part of site.yml: the host is operated remotely, and this play installs
+# packages, NetworkManager/ufw settings, a service and CNI/iptables rules on its network stack. Run it only at the
+# console, during a maintenance window:
 #   ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 - name: Join the physical GPU host (maintenance window only)
   hosts: gpu_nodes
@@ -10,16 +11,127 @@
       ansible.builtin.assert:
         that: host_changes_allowed | bool
         fail_msg: >-
-          gpu-host is the remotely operated desktop. Joining it installs k3s-agent and CNI/iptables rules on the
-          host network stack, which can drop a remote session. Re-run at the console with -e host_changes_allowed=true -K.
-
-    - name: The NVIDIA container toolkit must already be installed (this playbook does not change drivers)
-      ansible.builtin.command: nvidia-ctk --version
-      changed_when: false
+          gpu-host is the remotely operated desktop. Joining it installs the NVIDIA container toolkit, k3s-agent and
+          ufw/CNI/iptables rules on the host network stack, which can drop a remote session. Re-run at the console with
+          -e host_changes_allowed=true -K.
 
     - name: Gather facts
       ansible.builtin.setup:
       become: true
+
+    - name: vmnet8 (the VMware NAT network the VMs live on) is up on the host
+      ansible.builtin.assert:
+        that: ansible_facts['vmnet8']['ipv4']['address'] is defined
+        fail_msg: vmnet8 has no IPv4 address; start VMware networking (and the VMs) first.
   roles:
+    - role: gpu_host_prep
+      become: true
     - role: k3s_agent
       become: true
+
+- name: The GPU host is Ready and exposes its GPU
+  hosts: k3s_server
+  become: true
+  gather_facts: false
+  vars:
+    k3s_manifests: "{{ playbook_dir }}/../../k8s"
+  tasks:
+    - name: Wait until the GPU host has registered
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get node {{ item }} -o name
+      loop: "{{ groups['gpu_nodes'] }}"
+      register: gpu_node_get
+      until: gpu_node_get.rc == 0
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: Wait until it is Ready
+      ansible.builtin.command: /usr/local/bin/k3s kubectl wait --for=condition=Ready node/{{ item }} --timeout=300s
+      loop: "{{ groups['gpu_nodes'] }}"
+      changed_when: false
+
+    # K3s applies every manifest in this directory and re-applies it when the file changes.
+    - name: Deploy the NVIDIA device plugin
+      ansible.builtin.copy:
+        src: "{{ k3s_manifests }}/nvidia-device-plugin.yaml"
+        dest: /var/lib/rancher/k3s/server/manifests/k3slab-nvidia-device-plugin.yaml
+        mode: "0600"
+
+    # After a k3s-agent restart the plugin pod restarts and re-registers with the kubelet; the node object can still show
+    # the old allocatable count meanwhile, so wait for the plugin itself first.
+    - name: Wait until the device plugin is running again
+      ansible.builtin.command: /usr/local/bin/k3s kubectl -n kube-system rollout status ds/nvidia-device-plugin-daemonset --timeout=180s
+      changed_when: false
+
+    - name: Wait until the GPU host advertises nvidia.com/gpu
+      ansible.builtin.command:
+        argv: [/usr/local/bin/k3s, kubectl, get, node, "{{ item }}", -o, 'jsonpath={.status.allocatable.nvidia\.com/gpu}']
+      loop: "{{ groups['gpu_nodes'] }}"
+      register: gpu_allocatable
+      until: (gpu_allocatable.stdout | default('', true) | int) >= 1
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: GPU smoke test (nvidia-smi and cluster DNS from a pod on the GPU host)
+      block:
+        - name: Remove the previous smoke-test job
+          ansible.builtin.command: /usr/local/bin/k3s kubectl delete job k3slab-gpu-smoke --ignore-not-found --wait=true
+          register: gpu_smoke_delete
+          changed_when: "'deleted' in gpu_smoke_delete.stdout"
+
+        - name: Start the smoke-test job
+          ansible.builtin.command:
+            argv: [/usr/local/bin/k3s, kubectl, apply, -f, "-"]
+            stdin: "{{ lookup('ansible.builtin.file', k3s_manifests ~ '/gpu-smoke-job.yaml') }}"
+
+        # `kubectl wait --for=condition=complete` ignores failure and would sit out its whole timeout, so poll until the
+        # job is either Complete or Failed.
+        - name: Wait for the smoke-test job to finish
+          ansible.builtin.command:
+            argv: [/usr/local/bin/k3s, kubectl, get, job/k3slab-gpu-smoke, -o, 'jsonpath={.status.conditions[?(@.status=="True")].type}']
+          register: gpu_smoke_state
+          until: gpu_smoke_state.stdout is search('Complete|Failed')
+          retries: 120
+          delay: 5
+          changed_when: false
+
+        - name: The smoke-test job completed
+          ansible.builtin.assert:
+            that: gpu_smoke_state.stdout is search('Complete')
+            fail_msg: "smoke-test job ended with: {{ gpu_smoke_state.stdout }}"
+
+        - name: Read the smoke-test output
+          ansible.builtin.command: /usr/local/bin/k3s kubectl logs job/k3slab-gpu-smoke
+          register: gpu_smoke_logs
+          changed_when: false
+
+        - name: Smoke-test output
+          ansible.builtin.debug:
+            var: gpu_smoke_logs.stdout_lines
+      rescue:
+        - name: Collect the smoke-test status
+          ansible.builtin.shell: |
+            /usr/local/bin/k3s kubectl describe job/k3slab-gpu-smoke
+            /usr/local/bin/k3s kubectl describe pods -l job-name=k3slab-gpu-smoke
+            /usr/local/bin/k3s kubectl logs -l job-name=k3slab-gpu-smoke --tail=50
+          register: gpu_smoke_debug
+          changed_when: false
+          failed_when: false
+
+        - name: Smoke-test status
+          ansible.builtin.debug:
+            var: gpu_smoke_debug.stdout_lines
+
+        - name: The GPU smoke test failed
+          ansible.builtin.fail:
+            msg: The GPU host joined, but a pod could not use the GPU or cluster DNS; see the status above.
+
+    - name: Show the nodes
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o wide --show-labels
+      register: k3s_nodes_wide
+      changed_when: false
+
+    - name: Nodes
+      ansible.builtin.debug:
+        var: k3s_nodes_wide.stdout_lines

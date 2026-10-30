@@ -1,0 +1,44 @@
+# NVIDIA device plugin: advertises the GPU host's GPU as the nvidia.com/gpu resource.
+# Based on NVIDIA/k8s-device-plugin v0.20.1 deployments/static/nvidia-device-plugin.yml (Apache-2.0), with two
+# changes for this cluster: it runs only on the GPU node (nodeSelector) and through K3s' `nvidia` RuntimeClass, so
+# the plugin can reach the driver via NVML. Deployed by infra/ansible/playbooks/gpu-host.yml into the K3s server's
+# auto-deploy directory (/var/lib/rancher/k3s/server/manifests/).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        k3slab.io/role: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      priorityClassName: system-node-critical
+      containers:
+        - name: nvidia-device-plugin-ctr
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.20.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: kubelet-device-plugins-dir
+              mountPath: /var/lib/kubelet/device-plugins
+      volumes:
+        - name: kubelet-device-plugins-dir
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory

@@ -1,0 +1,79 @@
+# In-cluster image registry ("연구실 내부 레지스트리", proposal slide 6) on the platform node (worker-cpu-1).
+# The Service has a fixed ClusterIP (10.43.0.50, inside the lower static band of the 10.43.0.0/16 service range), so
+# the address never changes even though node IPs come from vmnet8 DHCP. kube-proxy makes ClusterIPs reachable from
+# every node's host network, which is where containerd pulls from. Nodes map the name registry.k3slab.local:5000 to
+# http://10.43.0.50:5000 in /etc/rancher/k3s/registries.yaml (Ansible role k3s_node).
+# Plain HTTP on the cluster-internal address; not exposed outside the cluster. Data lives on worker-cpu-1's disk
+# (local-path), so recreating that VM empties the registry; rebuild with scripts/image-build.sh.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k3slab-system
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: k3slab-system
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: k3slab-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      nodeSelector:
+        k3slab.io/role: platform
+      containers:
+        - name: registry
+          image: docker.io/library/registry:3.1.2
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: k3slab-system
+spec:
+  clusterIP: 10.43.0.50
+  selector:
+    app: registry
+  ports:
+    - port: 5000
+      targetPort: 5000

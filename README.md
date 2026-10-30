@@ -21,7 +21,7 @@ VMware Workstation Pro 위에 Rocky Linux 9.8 Server VM 3대를 만들고 K3s를
 | `k3s-server` | 2 vCPU, 3 GB | K3s 제어 노드 | 예 |
 | `worker-cpu-1` | 2 vCPU, 6 GB | `platform` 라벨의 작업 노드 | 예 |
 | `worker-cpu-2` | 2 vCPU, 3 GB | `app` 라벨의 작업 노드 | 예 |
-| `gpu-host` | 물리 호스트 | GPU 작업용 K3s agent 후보 | 아니요. 명시적 유지보수 작업만 제공 |
+| `gpu-host` | 물리 호스트(RTX 3090) | `gpu` 라벨의 GPU 작업 노드 | 아니요. 시나리오 7을 콘솔에서 실행 |
 
 ## 필요한 호스트 자원과 네트워크
 
@@ -44,6 +44,10 @@ VMware Workstation Pro 위에 Rocky Linux 9.8 Server VM 3대를 만들고 K3s를
 | `infra/packer/` | Rocky Kickstart, Packer HCL, 일반화 스크립트 |
 | `infra/terraform/` | VMware Workstation 리소스와 provider lock |
 | `infra/ansible/` | 정적/생성 inventory, 역할, playbook |
+| `infra/k8s/` | 클러스터에 올리는 매니페스트: NVIDIA device plugin, GPU 스모크 테스트 Job, 내부 레지스트리, 실습(`labs/`) |
+| `apps/train/` | 학습 Job: `train.py`(작업 번호별 체크포인트·재개·상태 기록), `Dockerfile`(PyTorch 2.14.1 + CUDA 13.0) |
+| `apps/infer/` | C++ 추론 워커: 요청 큐(초과 시 429), 고정 스레드, 배치, 타임아웃(504), `/metrics`. 학습이 내보낸 `model.k3sm`을 서빙 |
+| `charts/k3slab-workload/` | 실행 템플릿 Helm 차트: `values-train.yaml`(학습 Job), `values-infer.yaml`(추론 워커, 8~11주차) |
 | `scripts/entry.sh` | 전체 프로비저닝 진입점. 아래 단계 스크립트를 순서대로 호출한다 |
 | `scripts/` | 단계 스크립트: vmrest 기동, ISO 검증·다운로드, 사전 점검, 이미지 빌드, Terraform wrapper, 2단계 apply, Workstation UI 등록, inventory 생성, provider 스모크 테스트 |
 | `docs/` | 최신 인계서와 워크플로우 다이어그램 |
@@ -67,6 +71,7 @@ VMware Workstation Pro 위에 Rocky Linux 9.8 Server VM 3대를 만들고 K3s를
 - ansible-core 2.21.4, K3s v1.36.4+k3s1
 - Rocky Linux 9.8 x86_64 DVD ISO, SHA-256 `d2bcbb64…36d01f`
 - K3s SELinux policy RPM 1.6-1.el9, SHA-256 고정
+- GPU 호스트: NVIDIA Container Toolkit 1.20.1-1(저장소 키 SHA-256 고정, apt hold), NVIDIA device plugin v0.20.1
 
 `scripts/preflight.sh`는 도구 버전, provider/plugin 해시, ISO, 골든 이미지 무결성, 비밀값 권한과 Ubuntu 게스트 잔존물을 검사한다.
 
@@ -166,8 +171,8 @@ scripts/entry.sh
 ### 시나리오 3. 중간에 실패했을 때
 
 - 출력 끝의 `FAILED at step N/9: <명령>`에서 멈춘 단계를 확인하고, 그 위의 메시지대로 원인을 고친 뒤 `scripts/entry.sh`를 다시 실행한다. 끝난 단계는 건너뛰거나 변경 없이 지나간다.
-- 3단계(preflight) 실패는 `[FAIL]` 줄이 원인이다. 예를 들어 커널 업데이트 뒤 `vmmon.ko missing`이 나오면, 콘솔에서 `sudo vmware-modconfig --console --install-all`로 모듈을 다시 빌드한다(원격 작업 중에는 하지 않는다).
-- 4단계는 Packer가 실패하면 출력 디렉터리를 스스로 지운다. 그러나 Packer가 끝난 뒤(SHA-256 기록·vmrest 등록)에 실패하면 이미지 디렉터리가 남아 다음 실행에서 건너뛰어진다. 이때는 이미지 파일에 쓰기 권한을 주고(`chmod u+w`) vmrest에서 삭제한 뒤, Workstation 라이브러리(`~/.vmware/inventory.vmls`)에 항목이 남았으면 정리하고 다시 실행한다.
+- 3단계(preflight) 실패는 `[FAIL]` 줄이 원인이다. 예를 들어 커널 업데이트 뒤 `vmmon.ko missing`이 나오면, 콘솔에서 `sudo vmware-modconfig --console --install-all`로 모듈을 다시 빌드한다(원격 작업 중에는 하지 않는다). **재부팅 전에 막는 법:** 새 커널이 설치되면 preflight가 `newest installed kernel ... has no vmmon.ko`로 경고한다. 그때 재부팅 전에 `scripts/vmware-modules.sh --install`(콘솔, sudo)로 새 커널용 모듈을 미리 빌드·설치한다. vmware-modconfig는 실행 중인 커널용으로만 빌드하므로, 이 스크립트가 Workstation 모듈 소스를 대상 커널 헤더로 직접 빌드한다.
+- 4단계는 Packer가 실패하면 출력 디렉터리를 스스로 지운다. 그러나 Packer가 끝난 뒤(SHA-256 기록·vmrest 등록)에 실패하면 이미지 디렉터리가 남아 다음 실행에서 건너뛰어진다. 이때는 이미지 파일에 쓰기 권한을 주고(`chmod u+w`) vmrest에서 삭제한 뒤 다시 실행한다. vmrest 삭제로는 Workstation 라이브러리 목록이 지워지지 않으므로, 항목이 남았으면 Workstation 화면의 라이브러리에서 그 항목을 우클릭 → **Remove**로 목록에서만 뺀다(VM 파일은 지우지 않음). `~/.vmware/inventory.vmls`를 직접 편집하지 않는다(아래 9번).
 - 3단계의 `Project files`에서 실패하면 `scripts/verify-project.sh`를 단독 실행한다. 누락 파일 이름, 실행 권한 문제 또는 Bash 문법 오류가 그대로 표시된다.
 - VM이 켜지고 SSH도 되는데 Workstation **My Computer**에 노드가 안 보이면 `scripts/register-vms.sh`를 실행한다. VM 파일·전원·Terraform state는 건드리지 않고 빠진 UI 항목만 공식 vmrest API로 등록한다.
 - 7단계가 `no guest IP`로 실패하면 VM이 켜져 있는지, 게스트의 open-vm-tools가 떠 있는지 확인한다.
@@ -206,13 +211,29 @@ vmrun -T ws list                   # "Total running VMs: 0"이 될 때까지 확
 
 ### 시나리오 7. 물리 GPU 호스트 합류 (콘솔 유지보수 창)
 
-`entry.sh`는 물리 호스트를 건드리지 않는다. NVIDIA Container Toolkit을 설치한 뒤 **호스트 콘솔에서** 실행한다.
+`entry.sh`는 물리 호스트를 건드리지 않는다. VM 3대가 켜진 상태(`entry.sh` 통과)에서 **호스트 콘솔에서** 실행한다. `-K`는 호스트 sudo 비밀번호를 묻는다.
 
 ```bash
 source ~/.local/share/k3s-vmware-lab/ansible-venv/bin/activate
 cd infra/ansible
 ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 ```
+
+이 playbook이 순서대로 하는 일:
+
+1. `host_changes_allowed` 확인. 없으면 sudo를 쓰기 전에 멈춘다
+2. NVIDIA Container Toolkit 1.20.1-1 설치: NVIDIA apt 저장소와 키 SHA-256을 고정하고 패키지를 hold한다. 드라이버는 건드리지 않는다
+3. `/etc/NetworkManager/conf.d/k3s.conf`: `cni0`·`flannel*`·`veth*`를 NetworkManager 관리 대상에서 제외한다
+4. ufw가 켜져 있으면 다음을 허용한다
+   - vmnet8에서 오는 10250/tcp(kubelet)와 8472/udp(flannel VXLAN)
+   - K3s 파드·서비스 대역(10.42/16, 10.43/16)
+5. k3s-agent 설치
+   - 노드 IP는 vmnet8 주소(172.16.133.1), flannel 인터페이스는 `vmnet8`이다. LAN 쪽 기본 경로를 쓰지 않는다
+   - 라벨은 `k3slab.io/role=gpu`, 유닛은 `vmware.service` 뒤에 시작한다
+6. 서버에서 gpu-host Ready 대기 → `infra/k8s/nvidia-device-plugin.yaml`을 K3s 자동 배포 디렉터리에 복사 → `nvidia.com/gpu` 자원이 나타날 때까지 대기
+7. 스모크 테스트 Job(`infra/k8s/gpu-smoke-job.yaml`): gpu-host의 파드에서 `nvidia-smi`와 클러스터 DNS 조회가 성공해야 한다
+
+다시 실행해도 안전하다. 확인과 되돌리기 절차는 `docs/gpu-host-join-prep.md`에 있다.
 
 ### 시나리오 8. VM 3대만 완전히 지우고 다시 만들기
 
@@ -230,6 +251,90 @@ scripts/entry.sh
 ### 시나리오 9. 도구나 Provider를 업그레이드하기 전
 
 실제 노드로 시험하지 않는다. 골든 이미지가 준비된 상태에서 유지보수 시간에 `scripts/provider-smoke-test.sh`를 실행한다. 이 스크립트는 별도의 폐기용 복제본으로 생성 → 전원 → 수정 → 삭제를 검증하며, 실행 중 vmrest를 재시작할 수 있으므로 다른 Terraform 작업과 동시에 실행하지 않는다.
+
+### 시나리오 10. K3s 실습 5개 실행 (제안서 8번 슬라이드)
+
+노드 4대가 Ready일 때 실행한다. 명령·출력·걸린 시간·판정이 `docs/labs/k3s-lab-<날짜시각>.md`에 기록된다.
+
+```bash
+scripts/k3s-lab.sh                    # 1~5 전부 (약 15분: 5번 노드 중단에서 파드 이동 대기 ~5분 + entry.sh 복구)
+scripts/k3s-lab.sh --skip-node-stop   # 5번(VM 강제 종료) 빼고
+```
+
+| 실습 | 하는 일 | 통과 기준 |
+|---|---|---|
+| 1 노드 조인 | `get nodes` | 4대 Ready |
+| 2 작업 배치 | gpu-host에 `nvidia.com/gpu=present:NoSchedule` taint를 건다. GPU 파드 2개와 일반 파드 4개를 띄운다 | GPU 파드 a는 gpu-host에서 RTX 3090을 인식한다. b는 GPU가 1개뿐이라 Pending이다. 일반 파드는 gpu-host에 가지 않는다 |
+| 3 복제본 조정 | echo-api(whoami) replicas 1 → 3, 요청 60개 | 3개일 때 세 파드가 모두 응답한다 |
+| 4 파드 재시작 | 파드 강제 삭제 / 컨테이너 강제 종료 | 새 파드로 3개 복구 / 같은 파드에서 RESTARTS 1 |
+| 5 노드 중단 | `vmrun ... hard`로 worker-cpu-2를 끈 뒤 `entry.sh`로 복구한다 | NotReady 감지, 약 5분 뒤 파드가 다른 노드에서 Ready, 복구 후 Ready |
+
+- 실습 매니페스트는 `infra/k8s/labs/`에 있다. 실습이 끝나면 `k3slab-lab` 네임스페이스를 지운다(`--keep`으로 남길 수 있다).
+- gpu-host의 taint는 운영 정책이라 실습 뒤에도 남긴다. GPU 작업은 `tolerations`에 `nvidia.com/gpu`(NoSchedule)를 넣어야 이 노드에 뜬다. 재합류할 때는 `group_vars/gpu_nodes.yml`의 `node-taint`로 다시 걸린다.
+- 호스트에서 `kubectl`을 직접 쓸 때 `config.yaml: permission denied` 경고가 보기 싫으면 `K3S_CONFIG_FILE=/dev/null`을 붙인다(`kubectl`이 k3s 링크라 생기는 경고다).
+
+### 시나리오 11. 이미지 빌드 → 학습 Job 실행 → 중단 후 재개
+
+호스트 Docker 없이 클러스터 안에서 처리한다.
+
+- **레지스트리:** worker-cpu-1에 있다. 주소는 고정 ClusterIP `10.43.0.50`이고, 노드는 `registry.k3slab.local:5000`이라는 이름으로 접근한다.
+- **빌드:** Kaniko Job이 gpu-host에서 한다.
+
+처음 한 번만 아래 준비를 한다.
+
+```bash
+kubectl apply -f infra/k8s/registry.yaml                     # 레지스트리 (KUBECONFIG=~/.config/k3s-vmware-lab/secrets/kubeconfig)
+cd infra/ansible && ansible-playbook playbooks/site.yml        # VM 3대에 registries.yaml
+ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K   # gpu-host에 registries.yaml (콘솔, sudo)
+```
+
+빌드와 실행:
+
+```bash
+scripts/image-build.sh apps/train train-worker v0.3          # 빌드 → push → docs/image-builds.md에 기록 (v0.1·v0.2는 결함으로 삭제됨)
+helm upgrade --install train-demo charts/k3slab-workload \
+  -f charts/k3slab-workload/values-train.yaml --set train.jobId=demo --set train.epochSleep=5
+kubectl logs -f job/train-demo                                # 에폭마다 상태 JSON 한 줄
+kubectl delete pod -l k3slab.io/job-id=demo                   # 중단 → Job이 새 파드로 재시도, 체크포인트부터 이어서 학습
+```
+
+- **체크포인트:** gpu-host의 `/var/lib/k3slab/checkpoints/<job-id>/`에 저장된다. 에폭마다 저장하고, SIGTERM을 받아도 저장한다. 최근 3개만 남기고 `latest.json`이 마지막 체크포인트를 가리킨다.
+- **상태 기록:** `status.json`과 stdout에 남는다. 항목은 나중에 MySQL 컬럼에 그대로 넣을 수 있게 맞췄다: `job_id`, `job_type`, `model_version`, `status`(RUNNING/INTERRUPTED/DONE/FAILED), `checkpoint_path`, `result_path`, `updated_at`.
+- **중복 요청:** 이미 `DONE`인 작업 번호로 다시 요청하면 학습하지 않고 기존 상태를 돌려준다.
+- **태그는 불변:** 같은 태그로 다시 빌드하지 않는다. 코드를 바꾸면 새 태그(`v0.4`)로 빌드하고 `--set image.tag=v0.4`로 실행한다.
+
+### 시나리오 12. 추론 워커 실행과 벤치마크 (8주차 착수분)
+
+학습 Job이 끝나면 `<checkpoints>/<job-id>/model.k3sm`이 생긴다. 이 파일은 C++ 워커용 float32 가중치이고, PyTorch 없이 읽을 수 있다.
+
+```bash
+scripts/image-build.sh apps/infer infer-worker v0.1                  # 작은 이미지 (GCC 빌드 → Debian slim)
+helm upgrade --install infer charts/k3slab-workload \
+  -f charts/k3slab-workload/values-infer.yaml --set infer.modelJobId=demo
+scripts/infer-bench.sh demo                                          # 배치 1 vs 8, 과부하 429 → docs/labs/infer-bench-*.md
+```
+
+| API | 응답 |
+|---|---|
+| `POST /infer` `{"x":[64개 숫자]}` | 200 `{"class","probs","batch","queue_ms","model_version"}` / 429 큐 가득 참(즉시 거절) / 504 대기 시간 초과 / 400 잘못된 입력 |
+| `GET /healthz` | 모델을 읽은 뒤 200 |
+| `GET /metrics` | Prometheus 형식: 큐 길이·용량, 결과별 요청 수, 배치 크기 분포, 처리 시간 |
+
+- **설정(Helm values `infer.*`):**
+  - `queueSize` → `MAX_QUEUE`: 큐 크기
+  - `maxBatch` → `MAX_BATCH`: 한 번에 묶어 실행하는 요청 수
+  - `threads` → `WORKER_THREADS`: 고정 워커 스레드 수
+  - `timeoutMs` → `TIMEOUT_MS`: 이 시간보다 오래 기다린 요청은 504
+  - `workMs` → `WORK_MS`: 배치 한 번당 고정 비용
+- **현재 한계:**
+  - 추론은 아직 CPU에서 한다. `WORK_MS`는 GPU 호출 1회의 고정 비용을 흉내 낸다. 그래야 작은 모델로도 배치 효과와 큐 초과를 관찰할 수 있다.
+  - GPU 추론(CUDA)은 다음 단계다. 그전까지 values-infer는 `gpu: 0`이다.
+- **로컬 검증 결과 (2026-10-30):**
+  - PyTorch와 20개 입력 모두 같은 클래스(확률 차이 최대 5e-6)
+  - 요청 200개: 배치 1이면 4.03s, 배치 8이면 0.54s
+  - 큐 20에 300개 동시 요청: 271개가 즉시 429
+  - 대기 상한 300ms 초과: 93개가 504
+  - SIGTERM을 받으면 정상 종료
 
 ## 다 끝났는지 확인하기
 
@@ -343,5 +448,7 @@ ansible k3s_server -b -m command -a '/usr/local/bin/k3s kubectl get pods -A -o w
 8. DHCP로 받은 현재 노드 IP를 설정 파일에 고정하지 않는다. IP가 바뀌면 `scripts/render-inventory.sh`를 실행한다.
 9. Terraform state나 `~/.vmware/inventory.vmls`를 평소에 직접 편집하지 않는다. UI 등록은 공식 vmrest API를 호출하는 스크립트에 맡긴다.
 10. 커밋·이관 전 `scripts/verify-project.sh`와 `git status --short`로 필수 파일 누락과 미추적 소스를 확인한다.
+11. gpu-host(이 데스크톱)는 클러스터의 유일한 GPU 노드다. 학습·추론 실험 중에는 게임 같은 데스크톱 GPU 사용을 하지 않는다(24 GB VRAM과 GPU 시간을 나눠 씀). 데스크톱 용도로 GPU를 오래 써야 하면 먼저 `kubectl cordon gpu-host`로 새 작업이 오지 않게 하고, 끝나면 `kubectl uncordon gpu-host`. 절전·최대 절전도 하지 않는다(노드 NotReady, VM 정지).
+12. 이미지 태그는 한 번 push하면 다시 쓰지 않는다. 결함이 있는 태그는 레지스트리에서 지우고 `docs/image-builds.md`에 사유를 남긴 뒤 새 태그로 빌드한다.
 
 Provider API, 파일 해시, SELinux 컨텍스트 같은 상세 근거가 필요하면 [기술 인계서](docs/vmware-iac-handoff.md)를 본다. 전체 흐름은 [워크플로우 다이어그램](docs/vmware-workstation-iac-workflow-2560x1440.png)에서 한눈에 확인할 수 있다.

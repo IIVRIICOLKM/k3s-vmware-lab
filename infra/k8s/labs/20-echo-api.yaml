@@ -1,0 +1,52 @@
+# Labs 3-5: a stand-in for the API/preprocessing pods (proposal slide 7: worker-cpu-2, the stop-experiment target).
+# whoami answers every request with its pod hostname, so the load client can count which replica served it.
+# Placement is *preferred* on the app node (worker-cpu-2), not required, so the pods can move when that node stops.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-api
+  namespace: k3slab-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-api
+  template:
+    metadata:
+      labels:
+        app: echo-api
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: k3slab.io/role
+                    operator: In
+                    values: [app]
+      containers:
+        - name: whoami
+          image: docker.io/traefik/whoami:v1.12.0
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-api
+  namespace: k3slab-lab
+spec:
+  selector:
+    app: echo-api
+  ports:
+    - port: 80
+      targetPort: 80

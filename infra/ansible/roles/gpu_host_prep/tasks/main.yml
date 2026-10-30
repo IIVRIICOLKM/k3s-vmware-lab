@@ -1,0 +1,99 @@
+# Host-side prerequisites for joining the physical Ubuntu GPU host to K3s. Runs only from playbooks/gpu-host.yml.
+
+- name: The pinned toolkit version and key checksum are set
+  ansible.builtin.assert:
+    that:
+      - nvidia_ctk_version | length > 0
+      - nvidia_ctk_gpgkey_sha256 | length == 64
+
+# NVIDIA Container Toolkit: K3s registers nvidia-container-runtime with its own containerd when the agent starts, so the
+# toolkit must be installed first. `nvidia-ctk runtime configure` is deliberately not run: it targets Docker or the
+# system containerd, not K3s.
+- name: Create the apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download the NVIDIA container toolkit signing key (checksum pinned)
+  ansible.builtin.get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /etc/apt/keyrings/nvidia-container-toolkit.asc
+    checksum: "sha256:{{ nvidia_ctk_gpgkey_sha256 }}"
+    mode: "0644"
+
+- name: Add the NVIDIA container toolkit apt repository
+  ansible.builtin.deb822_repository:
+    name: nvidia-container-toolkit
+    types: deb
+    uris: https://nvidia.github.io/libnvidia-container/stable/deb/amd64
+    suites: /
+    signed_by: /etc/apt/keyrings/nvidia-container-toolkit.asc
+
+# Refresh only this repository. The desktop carries many third-party repositories, and one with a broken signature
+# (HashiCorp rotated its signing key on 2026-09-10) makes a full cache update fail. Other indexes are kept as they are.
+- name: Refresh the NVIDIA repository index only
+  ansible.builtin.command:
+    argv:
+      - apt-get
+      - update
+      - -o
+      - Dir::Etc::SourceList=/etc/apt/sources.list.d/nvidia-container-toolkit.sources
+      - -o
+      - Dir::Etc::SourceParts=-
+      - -o
+      - APT::Get::List-Cleanup=0
+  changed_when: false
+
+- name: Install the pinned NVIDIA container toolkit
+  ansible.builtin.apt:
+    name: "{{ nvidia_ctk_packages | map('regex_replace', '$', '=' ~ nvidia_ctk_version) | list }}"
+    # The packages are held (next task); a changed pin must still be installable.
+    allow_change_held_packages: true
+
+- name: Hold the toolkit packages at the pinned version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ nvidia_ctk_packages }}"
+
+- name: Check the installed toolkit
+  ansible.builtin.command: nvidia-ctk --version
+  register: nvidia_ctk_installed
+  changed_when: false
+
+- name: The installed toolkit matches the pin
+  ansible.builtin.assert:
+    that: (nvidia_ctk_version | regex_replace('-[0-9]+$', '')) in nvidia_ctk_installed.stdout
+    fail_msg: "nvidia-ctk reports '{{ nvidia_ctk_installed.stdout_lines | first }}', pinned {{ nvidia_ctk_version }}"
+
+# NetworkManager runs on the desktop host; it must not manage the interfaces K3s/flannel create for pods.
+- name: Keep NetworkManager away from the K3s pod interfaces
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/k3s.conf
+    content: |
+      # Managed by Ansible (k3s-vmware-lab): K3s/flannel create these interfaces; NetworkManager must not touch them.
+      [keyfile]
+      unmanaged-devices=interface-name:cni0;interface-name:flannel*;interface-name:veth*
+    mode: "0644"
+  notify: Reload NetworkManager
+
+# ufw is active with INPUT/FORWARD policy DROP on this host. Allow only what K3s needs, and only from vmnet8 where possible.
+- name: Read the ufw state
+  ansible.builtin.command: /usr/sbin/ufw status
+  register: gpu_host_ufw
+  changed_when: false
+  failed_when: false
+
+- name: Allow K3s traffic through ufw
+  ansible.builtin.command: "/usr/sbin/ufw {{ item }}"
+  loop:
+    - "allow in on vmnet8 from {{ vmnet8_cidr }} to any port 10250 proto tcp comment 'k3s kubelet'"
+    - "allow in on vmnet8 from {{ vmnet8_cidr }} to any port 8472 proto udp comment 'k3s flannel vxlan'"
+    - "allow from {{ k3s_cluster_cidr }} to any comment 'k3s pods'"
+    - "allow from {{ k3s_service_cidr }} to any comment 'k3s services'"
+  vars:
+    vmnet8_cidr: "{{ ansible_facts['vmnet8']['ipv4']['network'] }}/{{ ansible_facts['vmnet8']['ipv4']['prefix'] }}"
+  register: gpu_host_ufw_rule
+  changed_when: "'Skipping' not in gpu_host_ufw_rule.stdout"
+  when: "gpu_host_ufw.rc == 0 and 'Status: active' in gpu_host_ufw.stdout"

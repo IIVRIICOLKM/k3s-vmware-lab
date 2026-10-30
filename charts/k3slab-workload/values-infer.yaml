@@ -1,0 +1,23 @@
+# Inference worker template (apps/infer, C++). Usage:
+#   helm upgrade --install infer charts/k3slab-workload -f charts/k3slab-workload/values-infer.yaml \
+#     --set infer.modelJobId=<training job id> [--set infer.maxBatch=1]
+kind: infer
+image:
+  repository: registry.k3slab.local:5000/infer-worker
+  tag: v0.1
+model:
+  version: v0
+# Inference runs on the CPU for now (the worker has no CUDA path yet); it stays on gpu-host next to the models.
+gpu: 0
+resources:
+  requests:
+    cpu: 250m
+    memory: 64Mi
+infer:
+  modelJobId: ""
+  replicas: 1
+  queueSize: 100
+  maxBatch: 8
+  timeoutMs: 2000
+  threads: 2
+  workMs: 20

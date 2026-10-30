@@ -1,6 +1,25 @@
-# gpu-host is the physical desktop that is operated remotely. Joining it to K3s installs a service and CNI/iptables
-# rules on the host network stack, so playbooks refuse to touch it unless this is set explicitly for a maintenance
-# window at the console: ansible-playbook playbooks/k3s.yml -e host_changes_allowed=true -K
+# gpu-host is the physical desktop that is operated remotely. Joining it to K3s installs packages, a service and
+# CNI/iptables rules on the host network stack, so playbooks refuse to touch it unless this is set explicitly for a
+# maintenance window at the console: ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 host_changes_allowed: false
 k3s_node_labels:
   - k3slab.io/role=gpu
+
+# The host's default route is the LAN NIC, which K3s would otherwise pick for the node IP and the flannel VXLAN path.
+# Keep all cluster traffic on vmnet8, the VMware NAT network the VMs live on (172.16.133.1, static on the host side).
+k3s_extra_config:
+  node-ip: "{{ ansible_facts['vmnet8']['ipv4']['address'] }}"
+  flannel-iface: vmnet8
+  # Keep ordinary pods off the desktop: only pods that tolerate this (GPU workloads, the device plugin) land here.
+  # Applied when the node registers; scripts/k3s-lab.sh also sets it on the existing node object.
+  node-taint:
+    - nvidia.com/gpu=present:NoSchedule
+# vmnet8 is created by vmware.service; start k3s-agent after it.
+k3s_unit_after:
+  - vmware.service
+
+# NVIDIA Container Toolkit from NVIDIA's apt repository. K3s detects nvidia-container-runtime when the agent starts and
+# registers it with its containerd; the `nvidia` RuntimeClass ships with K3s. The driver itself is not managed here.
+nvidia_ctk_version: 1.20.1-1
+# sha256 of https://nvidia.github.io/libnvidia-container/gpgkey (fingerprint C95B321B61E88C1809C4F759DDCAE044F796ECB0)
+nvidia_ctk_gpgkey_sha256: c880576d6cf75a48e5027a871bac70fd0421ab07d2b55f30877b21f1c87959c9

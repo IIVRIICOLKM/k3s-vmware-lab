@@ -1,0 +1,5 @@
+# Namespace for the K3s lab exercises (proposal slide 8). scripts/k3s-lab.sh creates and removes everything in it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k3slab-lab

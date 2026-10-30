@@ -10,6 +10,8 @@
   ansible.builtin.command: restorecon -v /usr/local/bin/k3s
   register: k3s_restorecon
   changed_when: k3s_restorecon.stdout | length > 0
+  # The Rocky VMs run SELinux enforcing; the Ubuntu GPU host has no SELinux (and no restorecon).
+  when: (ansible_facts.selinux.status | default('disabled')) == 'enabled'
   notify: Restart k3s
 
 - name: Link kubectl, crictl and ctr to k3s
@@ -31,6 +33,19 @@
     content: "{{ k3s_config | to_nice_yaml(indent=2) }}"
     mode: "0600"
   no_log: true
+  notify: Restart k3s
+
+- name: Point containerd at the in-cluster registry (plain HTTP on its fixed ClusterIP)
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/registries.yaml
+    content: |
+      # Managed by Ansible (k3s-vmware-lab): see infra/k8s/registry.yaml
+      mirrors:
+        "{{ k3s_registry_name }}":
+          endpoint:
+            - "{{ k3s_registry_endpoint }}"
+    mode: "0644"
+  when: k3s_registry_name is defined
   notify: Restart k3s
 
 - name: Install the systemd unit

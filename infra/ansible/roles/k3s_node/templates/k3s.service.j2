@@ -3,7 +3,7 @@
 Description=Lightweight Kubernetes ({{ k3s_mode }})
 Documentation=https://k3s.io
 Wants=network-online.target
-After=network-online.target
+After=network-online.target{{ (' ' ~ (k3s_unit_after | join(' '))) if (k3s_unit_after | default([])) else '' }}
 
 [Install]
 WantedBy=multi-user.target

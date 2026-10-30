@@ -14,3 +14,8 @@ k3s_rancher_rpm_key_sha256: 7d2415f7fc532c365c8874bfad966566daaa0d04a9a5ba14d1db
 k3s_server_hostname: k3s-server
 k3s_token_file: "{{ lab_secrets_dir }}/k3s-token"
 k3s_kubeconfig_file: "{{ lab_secrets_dir }}/kubeconfig"
+
+# In-cluster registry (infra/k8s/registry.yaml). Every node's containerd maps this name to the registry's fixed
+# ClusterIP over plain HTTP; image references use the name, e.g. registry.k3slab.local:5000/train-worker:v0.1.
+k3s_registry_name: registry.k3slab.local:5000
+k3s_registry_endpoint: http://10.43.0.50:5000

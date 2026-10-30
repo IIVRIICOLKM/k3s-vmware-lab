@@ -1,0 +1,79 @@
+# Lab 2 (work placement): the GPU is the scarcest resource, so it decides placement.
+#   gpu-train-a: pinned to the GPU node (nodeSelector + nvidia.com/gpu) -> runs on gpu-host and holds the only GPU.
+#   gpu-train-b: asks for a GPU without a nodeSelector -> stays Pending (Insufficient nvidia.com/gpu) while a holds it.
+#   cpu-filler:  ordinary pods with no placement rules -> never land on gpu-host because it carries the
+#                nvidia.com/gpu=present:NoSchedule taint (applied by scripts/k3s-lab.sh).
+# The "training" is simulated (nvidia-smi -L, then sleep) so the lab does not depend on a model image.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-train-a
+  namespace: k3slab-lab
+  labels:
+    app: gpu-train
+spec:
+  runtimeClassName: nvidia
+  nodeSelector:
+    k3slab.io/role: gpu
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: train
+      image: docker.io/library/ubuntu:24.04
+      command: ["sh", "-c", "nvidia-smi -L && sleep 3600"]
+      env:
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: compute,utility
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-train-b
+  namespace: k3slab-lab
+  labels:
+    app: gpu-train
+spec:
+  runtimeClassName: nvidia
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: train
+      image: docker.io/library/ubuntu:24.04
+      command: ["sh", "-c", "nvidia-smi -L && sleep 3600"]
+      env:
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: compute,utility
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-filler
+  namespace: k3slab-lab
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: cpu-filler
+  template:
+    metadata:
+      labels:
+        app: cpu-filler
+    spec:
+      containers:
+        - name: sleep
+          image: docker.io/library/busybox:1.37.0
+          command: ["sleep", "3600"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi

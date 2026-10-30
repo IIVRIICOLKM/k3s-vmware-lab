@@ -1,0 +1,21 @@
+# Lab 3: sends 60 separate HTTP requests to the echo-api Service and prints how many each replica answered.
+# Each curl opens a new connection, so kube-proxy picks a backend per request.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-client
+  namespace: k3slab-lab
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: docker.io/curlimages/curl:8.23.0
+          command:
+            - sh
+            - -c
+            - >-
+              for i in $(seq 1 60); do curl -s --max-time 2 http://echo-api/ | sed -n 's/^Hostname: //p'; done
+              | sort | uniq -c

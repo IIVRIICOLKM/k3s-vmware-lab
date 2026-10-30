@@ -1,0 +1,33 @@
+# One-off check that a pod scheduled on the GPU host can use the GPU (nvidia-smi is injected by the NVIDIA runtime)
+# and reach the cluster DNS across the flannel VXLAN on vmnet8. Run by infra/ansible/playbooks/gpu-host.yml.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k3slab-gpu-smoke
+  namespace: default
+spec:
+  # Right after k3s-agent restarts, the kubelet can admit a pod a moment before the device plugin has re-registered
+  # its GPU and reject it (UnexpectedAdmissionError: nvidia.com/gpu Available: 0). A retry a few seconds later works.
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      nodeSelector:
+        k3slab.io/role: gpu
+      # gpu-host carries nvidia.com/gpu=present:NoSchedule so only GPU workloads land there.
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: smoke
+          image: docker.io/library/ubuntu:24.04
+          command: ["sh", "-c", "nvidia-smi && getent hosts kubernetes.default.svc.cluster.local"]
+          env:
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+          resources:
+            limits:
+              nvidia.com/gpu: 1
