@@ -24,6 +24,10 @@
   <img src="docs/assets/architecture.svg" alt="k3s-vmware-lab 구성도" width="100%">
 </p>
 
+- **k3s-server**: 컨트롤 플레인으로 클러스터 상태를 관리하고 워크로드를 스케줄링합니다.
+- **worker-cpu-1 / worker-cpu-2**: CPU 워커로 일반 워크로드를 실행하며, worker-cpu-1은 내부 레지스트리도 함께 담당합니다.
+- **gpu-host**: 물리 GPU(RTX 3090) 노드로 NVIDIA device plugin을 통해 학습·추론 워크로드를 실행합니다.
+
 ### 주요 기능
 
 - [x] 기준 이미지 기반 가상머신 구성
