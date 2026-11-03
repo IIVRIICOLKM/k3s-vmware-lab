@@ -36,14 +36,9 @@
 
 ### 기술 스택
 
-| 구분 | 사용 기술 |
-|---|---|
-| 가상화 | VMware Workstation Pro, vmrest |
-| 이미지·인프라·구성 | Packer, Terraform, Ansible |
-| 오케스트레이션 | K3s, Helm |
-| GPU | NVIDIA Container Toolkit, NVIDIA device plugin |
-| 빌드·배포 | Kaniko, 내부 레지스트리 |
-| 워크로드 | PyTorch(학습), C++(추론) |
+<p align="center">
+  <img src="docs/assets/tech-stack.svg" alt="k3s-vmware-lab 기술 스택" width="100%">
+</p>
 
 ## 요구 사항
 
