@@ -40,7 +40,8 @@ required=(
   charts/k3slab-workload/values-train.yaml
   charts/k3slab-workload/values.yaml
   docs/vmware-iac-handoff.md
-  docs/vmware-workstation-iac-workflow-2560x1440.png
+  docs/vmware-workstation-iac-workflow.png
+  docs/assets/iac-workflow.svg
   docs/vmware-workstation-iac-workflow.dot
   infra/ansible/ansible.cfg
   infra/ansible/inventories/lab/group_vars/all.yml

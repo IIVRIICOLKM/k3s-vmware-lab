@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2010 1420" width="2010" height="1420" role="img" aria-label="Packer, Terraform, Ansible 워크플로우">
+<title>VMware Workstation Pro 기반 Packer → Terraform → Ansible 워크플로우</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#131a33"/></linearGradient>
+<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3b5bff" stop-opacity=".16"/><stop offset="1" stop-color="#3b5bff" stop-opacity="0"/></radialGradient>
+<filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" width="2010" height="1420"><feGaussianBlur stdDeviation="5"/></filter>
+<filter id="shadow" filterUnits="userSpaceOnUse" x="0" y="0" width="2010" height="1420"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity=".45"/></filter>
+<marker id="m-35c4ff" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#35c4ff"/></marker><marker id="m-35c4ff-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#35c4ff"/></marker>
+<marker id="m-4be3a0" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#4be3a0"/></marker><marker id="m-4be3a0-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#4be3a0"/></marker>
+<marker id="m-8a97bd" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#8a97bd"/></marker><marker id="m-8a97bd-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#8a97bd"/></marker>
+<marker id="m-a47bff" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#a47bff"/></marker><marker id="m-a47bff-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#a47bff"/></marker>
+<marker id="m-ff6b5e" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#ff6b5e"/></marker><marker id="m-ff6b5e-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#ff6b5e"/></marker>
+<marker id="m-ffb84d" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#ffb84d"/></marker><marker id="m-ffb84d-s" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M11 1 L1 6 L11 11 L8 6 Z" fill="#ffb84d"/></marker>
+<style>
+text { font-family: "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; }
+.ct { fill: #f2f5ff; font-size: 21px; font-weight: 700; }
+.cl { fill: #a9b8e0; font-size: 15.5px; }
+.pt { fill: #f2f5ff; font-size: 19px; font-weight: 700; }
+.pl { fill: #c4d0f2; font-size: 15.5px; }
+.lb { font-size: 14px; font-weight: 700; }
+.flow { stroke-dasharray: 12 9; animation: dash 1.2s linear infinite; }
+.dash { stroke-dasharray: 8 8; }
+@keyframes dash { to { stroke-dashoffset: -21; } }
+@media (prefers-reduced-motion: reduce) { .flow { animation: none; } }
+</style>
+</defs>
+<rect width="2010" height="1420" rx="22" fill="url(#bg)"/>
+<circle cx="1300" cy="700" r="760" fill="url(#glow)"/>
+<text x="50" y="70" style="fill:#f2f5ff;font-size:38px;font-weight:800">Packer → Terraform → Ansible 전체 워크플로우</text>
+<text x="50" y="106" style="fill:#9fb0d8;font-size:17px">물리 호스트 Ubuntu 26.04 · 게스트 Rocky Linux 9.8 Server(GUI 없음) · VMware Workstation 26.0.0 · vmrest 1.3.1</text>
+<g filter="url(#shadow)"><rect x="50" y="150" width="310" height="112" rx="16" fill="#151b30" stroke="#8a97bd" stroke-width="2"/></g>
+<text x="72" y="186" class="ct">IaC 저장소</text>
+<text x="72" y="213" class="cl">packer · terraform · ansible</text>
+<g filter="url(#shadow)"><rect x="50" y="330" width="310" height="112" rx="16" fill="#2e1820" stroke="#ff6b5e" stroke-width="2"/></g>
+<text x="72" y="362" class="ct">0. 사전 점검 게이트</text>
+<text x="72" y="389" class="cl">필수 파일 · 커널 모듈 · vmnet</text>
+<text x="72" y="411" class="cl">vmrest · 도구 · VMX/UI 목록</text>
+<text x="72" y="433" class="cl">이미지 · 여유 자원</text>
+<g filter="url(#shadow)"><rect x="50" y="510" width="310" height="112" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="72" y="546" class="ct">1. Packer</text>
+<text x="72" y="573" class="cl">Rocky 9.8 DVD + Kickstart</text>
+<text x="72" y="595" class="cl">Server 환경 · GUI 제외</text>
+<g filter="url(#shadow)"><rect x="50" y="690" width="310" height="112" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="726" class="ct">Rocky 골든 이미지</text>
+<text x="72" y="753" class="cl">VMX + VMDK</text>
+<text x="72" y="775" class="cl">버전·SHA-256 고정 · 변경 금지</text>
+<g filter="url(#shadow)"><rect x="450" y="510" width="310" height="112" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="472" y="546" class="ct">terraform.tfstate</text>
+<text x="472" y="573" class="cl">백업·접근 통제</text>
+<text x="472" y="595" class="cl">수동 편집 금지</text>
+<g filter="url(#shadow)"><rect x="450" y="690" width="310" height="112" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="472" y="726" class="ct">2. Terraform</text>
+<text x="472" y="753" class="cl">VM 선언 · 상태 관리 · 출력 생성</text>
+<text x="472" y="775" class="cl">apply -parallelism=1</text>
+<g filter="url(#shadow)"><rect x="850" y="690" width="310" height="112" rx="16" fill="#2b2112" stroke="#ffb84d" stroke-width="2"/></g>
+<text x="872" y="726" class="ct">elsudano/vmworkstation</text>
+<text x="872" y="753" class="cl">v2.0.1 정확히 고정</text>
+<text x="872" y="775" class="cl">linux_amd64 · protocol 6.0</text>
+<g filter="url(#shadow)"><rect x="1250" y="690" width="310" height="112" rx="16" fill="#2b2112" stroke="#ffb84d" stroke-width="2"/></g>
+<text x="1272" y="726" class="ct">vmrest REST API</text>
+<text x="1272" y="753" class="cl">1.3.1 build 25388281</text>
+<text x="1272" y="775" class="cl">localhost:8697 · 자격증명 필요</text>
+<g filter="url(#shadow)"><rect x="1650" y="690" width="310" height="112" rx="16" fill="#10261f" stroke="#4be3a0" stroke-width="2"/></g>
+<text x="1672" y="726" class="ct">VMware Workstation Pro</text>
+<text x="1672" y="753" class="cl">26.0.0 build 25388281</text>
+<text x="1672" y="775" class="cl">복제 · 전원 · 네트워크 · UI</text>
+<g filter="url(#shadow)"><rect x="1650" y="510" width="310" height="112" rx="16" fill="#2b2112" stroke="#ffb84d" stroke-width="2" stroke-dasharray="7 6"/></g>
+<text x="1672" y="546" class="ct">제한적 우회</text>
+<text x="1672" y="573" class="cl">vmrest 밖의 vmrun / API 스크립트</text>
+<text x="1672" y="595" class="cl">Provider 미지원 작업만</text>
+<g filter="url(#shadow)"><rect x="450" y="870" width="310" height="112" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="472" y="906" class="ct">Ansible inventory</text>
+<text x="472" y="933" class="cl">Terraform 이름·ID·그룹</text>
+<text x="472" y="955" class="cl">+ vmrest 현재 IP</text>
+<g filter="url(#shadow)"><rect x="850" y="870" width="310" height="112" rx="16" fill="#2b2112" stroke="#ffb84d" stroke-width="2"/></g>
+<text x="872" y="906" class="ct">Workstation UI 등록</text>
+<text x="872" y="933" class="cl">scripts/register-vms.sh</text>
+<text x="872" y="955" class="cl">누락 VMX만 멱등 등록</text>
+<g filter="url(#shadow)"><rect x="450" y="1050" width="310" height="112" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="472" y="1086" class="ct">3. Ansible</text>
+<text x="472" y="1113" class="cl">SSH 준비 확인 · 역할별 구성</text>
+<text x="472" y="1135" class="cl">멱등성 검증</text>
+<g filter="url(#shadow)"><rect x="450" y="1230" width="310" height="112" rx="16" fill="#151b30" stroke="#8a97bd" stroke-width="2" stroke-dasharray="7 6"/></g>
+<text x="472" y="1266" class="ct">gpu-host 물리 노드</text>
+<text x="472" y="1293" class="cl">기본 실행에 미포함</text>
+<text x="472" y="1315" class="cl">콘솔 유지보수 때만 합류</text>
+<rect x="834" y="994" width="1142" height="194" rx="22" fill="#ffffff" fill-opacity=".02" stroke="#4be3a0" stroke-opacity=".55" stroke-width="1.8" stroke-dasharray="3 6"/>
+<text x="858" y="1026" class="pt" fill="#4be3a0">최종 K3s 런타임 (VM 3대)</text>
+<g filter="url(#shadow)"><rect x="850" y="1050" width="310" height="112" rx="16" fill="#10261f" stroke="#4be3a0" stroke-width="2"/></g>
+<text x="872" y="1086" class="ct">k3s-server VM</text>
+<text x="872" y="1113" class="cl">2 vCPU · 3 GB</text>
+<text x="872" y="1135" class="cl">Control plane</text>
+<g filter="url(#shadow)"><rect x="1250" y="1050" width="310" height="112" rx="16" fill="#10261f" stroke="#4be3a0" stroke-width="2"/></g>
+<text x="1272" y="1086" class="ct">worker-cpu-1 VM</text>
+<text x="1272" y="1113" class="cl">2 vCPU · 6 GB</text>
+<text x="1272" y="1135" class="cl">platform 라벨</text>
+<g filter="url(#shadow)"><rect x="1650" y="1050" width="310" height="112" rx="16" fill="#10261f" stroke="#4be3a0" stroke-width="2"/></g>
+<text x="1672" y="1086" class="ct">worker-cpu-2 VM</text>
+<text x="1672" y="1113" class="cl">2 vCPU · 3 GB</text>
+<text x="1672" y="1135" class="cl">app 라벨</text>
+<path d="M205 266 L205 326" stroke="#35c4ff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M205 266 L205 326" stroke="#35c4ff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<rect x="242" y="282" width="50" height="28" rx="14" fill="#0b1020" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="267" y="301" text-anchor="middle" class="lb" fill="#35c4ff">검증</text>
+<path d="M205 446 L205 506" stroke="#35c4ff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M205 446 L205 506" stroke="#35c4ff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<rect x="231" y="462" width="72" height="28" rx="14" fill="#0b1020" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="267" y="481" text-anchor="middle" class="lb" fill="#35c4ff">통과 시</text>
+<path d="M205 626 L205 686" stroke="#35c4ff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M205 626 L205 686" stroke="#35c4ff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<rect x="242" y="642" width="50" height="28" rx="14" fill="#0b1020" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="267" y="661" text-anchor="middle" class="lb" fill="#35c4ff">빌드</text>
+<path d="M364 746 L444 746" stroke="#a47bff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M364 746 L444 746" stroke="#a47bff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<rect x="373" y="706" width="64" height="28" rx="14" fill="#0b1020" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="405" y="725" text-anchor="middle" class="lb" fill="#a47bff">이미지</text>
+<path d="M764 746 L844 746" stroke="#35c4ff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M764 746 L844 746" stroke="#35c4ff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<rect x="780" y="706" width="50" height="28" rx="14" fill="#0b1020" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="805" y="725" text-anchor="middle" class="lb" fill="#35c4ff">호출</text>
+<path d="M1164 746 L1244 746" stroke="#ffb84d" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1164 746 L1244 746" stroke="#ffb84d" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ffb84d)"/>
+<rect x="1178" y="706" width="54" height="28" rx="14" fill="#0b1020" stroke="#ffb84d" stroke-opacity=".7"/>
+<text x="1205" y="725" text-anchor="middle" class="lb" fill="#ffb84d">REST</text>
+<path d="M1564 746 L1644 746" stroke="#4be3a0" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1564 746 L1644 746" stroke="#4be3a0" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-4be3a0)"/>
+<rect x="1580" y="706" width="50" height="28" rx="14" fill="#0b1020" stroke="#4be3a0" stroke-opacity=".7"/>
+<text x="1605" y="725" text-anchor="middle" class="lb" fill="#4be3a0">제어</text>
+<path d="M605 686 L605 626" stroke="#a47bff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M605 686 L605 626" stroke="#a47bff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-start="url(#m-a47bff-s)" marker-end="url(#m-a47bff)"/>
+<rect x="624" y="642" width="86" height="28" rx="14" fill="#0b1020" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="667" y="661" text-anchor="middle" class="lb" fill="#a47bff">상태 기록</text>
+<path d="M565 806 L565 866" stroke="#a47bff" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M565 806 L565 866" stroke="#a47bff" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<rect x="478" y="822" width="70" height="28" rx="14" fill="#0b1020" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="513" y="841" text-anchor="middle" class="lb" fill="#a47bff">output</text>
+<path d="M605 986 L605 1046" stroke="#ff6b5e" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M605 986 L605 1046" stroke="#ff6b5e" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ff6b5e)"/>
+<rect x="624" y="1002" width="114" height="28" rx="14" fill="#0b1020" stroke="#ff6b5e" stroke-opacity=".7"/>
+<text x="681" y="1021" text-anchor="middle" class="lb" fill="#ff6b5e">동적 인벤토리</text>
+<path d="M605 1166 L605 1226" stroke="#8a97bd" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="dash" d="M605 1166 L605 1226" stroke="#8a97bd" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-8a97bd)"/>
+<rect x="627" y="1182" width="128" height="28" rx="14" fill="#0b1020" stroke="#8a97bd" stroke-opacity=".7"/>
+<text x="691" y="1201" text-anchor="middle" class="lb" fill="#8a97bd">명시적 유지보수</text>
+<path d="M675 806 L675 836 L1005 836 L1005 866" stroke="#ffb84d" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M675 806 L675 836 L1005 836 L1005 866" stroke="#ffb84d" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ffb84d)"/>
+<rect x="751" y="822" width="84" height="28" rx="14" fill="#0b1020" stroke="#ffb84d" stroke-opacity=".7"/>
+<text x="793" y="841" text-anchor="middle" class="lb" fill="#ffb84d">apply 후</text>
+<path d="M1164 926 L1405 926 L1405 806" stroke="#ffb84d" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1164 926 L1405 926 L1405 806" stroke="#ffb84d" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ffb84d)"/>
+<rect x="1200" y="912" width="150" height="28" rx="14" fill="#0b1020" stroke="#ffb84d" stroke-opacity=".7"/>
+<text x="1275" y="931" text-anchor="middle" class="lb" fill="#ffb84d">registration API</text>
+<path d="M1805 806 L1805 991" stroke="#4be3a0" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1805 806 L1805 991" stroke="#4be3a0" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-4be3a0)"/>
+<rect x="1832" y="890" width="110" height="28" rx="14" fill="#0b1020" stroke="#4be3a0" stroke-opacity=".7"/>
+<text x="1887" y="909" text-anchor="middle" class="lb" fill="#4be3a0">VM 생성/기동</text>
+<path d="M764 1106 L831 1106" stroke="#ff6b5e" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M764 1106 L831 1106" stroke="#ff6b5e" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ff6b5e)"/>
+<rect x="776" y="1066" width="46" height="28" rx="14" fill="#0b1020" stroke="#ff6b5e" stroke-opacity=".7"/>
+<text x="799" y="1085" text-anchor="middle" class="lb" fill="#ff6b5e">SSH</text>
+<path d="M1805 626 L1805 686" stroke="#ffb84d" stroke-width="10" opacity=".35" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="dash" d="M1805 626 L1805 686" stroke="#ffb84d" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-ffb84d)"/>
+<rect x="1828" y="642" width="122" height="28" rx="14" fill="#0b1020" stroke="#ffb84d" stroke-opacity=".7"/>
+<text x="1889" y="661" text-anchor="middle" class="lb" fill="#ffb84d">상태 추적 제한</text>
+<g filter="url(#shadow)"><rect x="450" y="150" width="710" height="290" rx="16" fill="#2b2112" fill-opacity=".85" stroke="#ffb84d" stroke-width="1.8"/></g>
+<text x="474" y="188" class="pt">필수 제약조건 / 판정</text>
+<text x="474" y="224" class="pl" fill="#ffb84d" font-weight="700">C1</text>
+<text x="516" y="224" class="pl">Provider v2.0.1 + .terraform.lock.hcl 고정</text>
+<text x="474" y="252" class="pl" fill="#ffb84d" font-weight="700">C2</text>
+<text x="516" y="252" class="pl">26.0.0 조합은 공식 호환표 없음 → 스모크 테스트 필수</text>
+<text x="474" y="280" class="pl" fill="#ffb84d" font-weight="700">C3</text>
+<text x="516" y="280" class="pl">vmrest 실행 + 계정 구성 + localhost 제한</text>
+<text x="474" y="308" class="pl" fill="#ffb84d" font-weight="700">C4</text>
+<text x="516" y="308" class="pl">문서 기준 Terraform -parallelism=1</text>
+<text x="474" y="336" class="pl" fill="#ffb84d" font-weight="700">C5</text>
+<text x="516" y="336" class="pl">VM 이름·설명 변경은 API 알려진 제약</text>
+<text x="474" y="364" class="pl" fill="#ffb84d" font-weight="700">C6</text>
+<text x="516" y="364" class="pl">GUI 누락은 등록 스크립트로 복구, 임의 수정·삭제 금지</text>
+<text x="474" y="392" class="pl" fill="#ffb84d" font-weight="700">C7</text>
+<text x="516" y="392" class="pl">비밀값은 환경변수/권한 파일, .tf에 평문 금지</text>
+<text x="474" y="420" class="pl" fill="#ffb84d" font-weight="700">C8</text>
+<text x="516" y="420" class="pl">GPU는 물리 호스트 직접 사용, VM 통과 경로와 분리</text>
+<g filter="url(#shadow)"><rect x="1250" y="150" width="710" height="230" rx="16" fill="#10261f" fill-opacity=".85" stroke="#4be3a0" stroke-width="1.8"/></g>
+<text x="1274" y="188" class="pt">현재 확정 구성</text>
+<text x="1274" y="224" class="pl">● Rocky Linux 9.8 Server · multi-user.target · GUI 없음</text>
+<text x="1274" y="252" class="pl">● NetworkManager DHCP · SELinux enforcing · chronyd</text>
+<text x="1274" y="280" class="pl">● vmrest: HTTPS 127.0.0.1:8697 전용</text>
+<text x="1274" y="308" class="pl">● 골든 NIC custom/vmnet8 · 복제본 고유 MAC</text>
+<text x="1274" y="336" class="pl">● VM 3대 Workstation UI 자동 등록 · 중복 방지</text>
+<g filter="url(#shadow)"><rect x="50" y="870" width="310" height="248" rx="16" fill="#131a33" stroke="#4a5a96" stroke-width="1.5"/></g>
+<text x="74" y="908" class="pt">범례</text>
+<rect x="74" y="931" width="18" height="18" rx="5" fill="#35c4ff"/>
+<text x="104" y="945" class="pl">실행 도구 / 단계</text>
+<rect x="74" y="961" width="18" height="18" rx="5" fill="#a47bff"/>
+<text x="104" y="975" class="pl">산출물 / 상태</text>
+<rect x="74" y="991" width="18" height="18" rx="5" fill="#4be3a0"/>
+<text x="104" y="1005" class="pl">실행 대상 / 정상 경로</text>
+<rect x="74" y="1021" width="18" height="18" rx="5" fill="#ffb84d"/>
+<text x="104" y="1035" class="pl">필수 제약 / 검증 필요</text>
+<rect x="74" y="1051" width="18" height="18" rx="5" fill="#ff6b5e"/>
+<text x="104" y="1065" class="pl">점검 / 구성 (Ansible 경로)</text>
+<path d="M74 1096H92" stroke="#8a97bd" stroke-width="3" stroke-dasharray="5 4"/>
+<text x="104" y="1101" class="pl">점선 = 예외·주의 연결</text>
+</svg>
