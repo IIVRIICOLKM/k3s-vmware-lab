@@ -24,9 +24,14 @@
   <img src="docs/assets/architecture.svg" alt="k3s-vmware-lab 구성도" width="100%">
 </p>
 
-- **k3s-server**: 컨트롤 플레인으로 클러스터 상태를 관리하고 워크로드를 스케줄링합니다.
-- **worker-cpu-1 / worker-cpu-2**: CPU 워커로 일반 워크로드를 실행하며, worker-cpu-1은 내부 레지스트리도 함께 담당합니다.
-- **gpu-host**: 물리 GPU(RTX 3090) 노드로 NVIDIA device plugin을 통해 학습·추론 워크로드를 실행합니다.
+- **k3s-server**: 클러스터의 컨트롤 플레인입니다.<br>
+  클러스터 상태를 관리하고 워크로드를 각 노드에 스케줄링합니다.
+- **worker-cpu-1**: 플랫폼 역할(`k3slab.io/role=platform`)의 CPU 워커입니다.<br>
+  학습·추론 이미지를 저장하는 내부 레지스트리를 호스팅합니다.
+- **worker-cpu-2**: 애플리케이션 역할(`k3slab.io/role=app`)의 CPU 워커입니다.<br>
+  일반 애플리케이션 워크로드를 실행합니다.
+- **gpu-host**: 물리 GPU(RTX 3090 24GB)를 가진 호스트 노드입니다.<br>
+  NVIDIA device plugin으로 GPU를 노출해 학습·추론 워크로드만 실행합니다.
 
 ### 주요 기능
 
