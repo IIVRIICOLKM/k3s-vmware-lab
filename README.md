@@ -20,20 +20,9 @@
 
 ### 구성도
 
-```mermaid
-flowchart LR
-  subgraph host["호스트 (Ubuntu · RTX 3090)"]
-    subgraph vm["VMware Workstation · vmnet8"]
-      s["k3s-server"]
-      w1["worker-cpu-1"]
-      w2["worker-cpu-2"]
-    end
-    g["gpu-host"]
-  end
-  packer["Packer"] --> vm
-  terraform["Terraform"] --> vm
-  ansible["Ansible"] --> s & w1 & w2 & g
-```
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="k3s-vmware-lab 구성도" width="100%">
+</p>
 
 ### 주요 기능
 
