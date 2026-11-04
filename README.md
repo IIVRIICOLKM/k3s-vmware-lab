@@ -2,7 +2,7 @@
 
 데스크톱 한 대로 구성하는 모델 학습·추론 실습 클러스터
 
-**[개요](#개요) • [요구 사항](#요구-사항) • [시작하기](#시작하기) • [프로젝트 구조](#프로젝트-구조) • [로드맵](#로드맵)**
+**[개요](#개요) • [워크플로우](#워크플로우) • [요구 사항](#요구-사항) • [시작하기](#시작하기) • [프로젝트 구조](#프로젝트-구조) • [로드맵](#로드맵)**
 
 ![K3s](https://img.shields.io/badge/K3s-v1.36.4-FFC61C?style=flat-square&logo=k3s&logoColor=black)
 ![Terraform](https://img.shields.io/badge/Terraform-1.16.3-7B42BC?style=flat-square&logo=terraform&logoColor=white)
@@ -20,20 +20,18 @@
 
 ### 구성도
 
-```mermaid
-flowchart LR
-  subgraph host["호스트 (Ubuntu · RTX 3090)"]
-    subgraph vm["VMware Workstation · vmnet8"]
-      s["k3s-server"]
-      w1["worker-cpu-1"]
-      w2["worker-cpu-2"]
-    end
-    g["gpu-host"]
-  end
-  packer["Packer"] --> vm
-  terraform["Terraform"] --> vm
-  ansible["Ansible"] --> s & w1 & w2 & g
-```
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="k3s-vmware-lab 구성도" width="100%">
+</p>
+
+- **k3s-server**: 클러스터의 컨트롤 플레인입니다.<br>
+  클러스터 상태를 관리하고 워크로드를 각 노드에 스케줄링합니다.
+- **worker-cpu-1**: 플랫폼 역할(`k3slab.io/role=platform`)의 CPU 워커입니다.<br>
+  학습·추론 이미지를 저장하는 내부 레지스트리를 호스팅합니다.
+- **worker-cpu-2**: 애플리케이션 역할(`k3slab.io/role=app`)의 CPU 워커입니다.<br>
+  일반 애플리케이션 워크로드를 실행합니다.
+- **gpu-host**: 물리 GPU(RTX 3090 24GB)를 가진 호스트 노드입니다.<br>
+  NVIDIA device plugin으로 GPU를 노출해 학습·추론 워크로드만 실행합니다.
 
 ### 주요 기능
 
@@ -47,14 +45,43 @@ flowchart LR
 
 ### 기술 스택
 
-| 구분 | 사용 기술 |
-|---|---|
-| 가상화 | VMware Workstation Pro, vmrest |
-| 이미지·인프라·구성 | Packer, Terraform, Ansible |
-| 오케스트레이션 | K3s, Helm |
-| GPU | NVIDIA Container Toolkit, NVIDIA device plugin |
-| 빌드·배포 | Kaniko, 내부 레지스트리 |
-| 워크로드 | PyTorch(학습), C++(추론) |
+<p align="center">
+  <img src="docs/assets/tech-stack.svg" alt="k3s-vmware-lab 기술 스택" width="100%">
+</p>
+
+## 워크플로우
+
+<p align="center">
+  <img src="docs/assets/iac-workflow.svg" alt="Packer → Terraform → Ansible 워크플로우" width="100%">
+</p>
+
+### 1. 사전 점검
+
+- 실행 전에 필수 파일, 커널 모듈, 가상 네트워크, 도구 상태를 한 번에 확인합니다.
+- 통과하지 못하면 이후 단계로 넘어가지 않습니다.
+
+### 2. 기준 이미지 (Packer)
+
+- 무인 설치로 GUI 없는 Rocky Linux 기준 이미지를 만듭니다.
+- 만들어진 이미지는 버전과 해시를 고정하고 수정하지 않습니다.
+
+### 3. 가상머신 생성 (Terraform)
+
+- 가상머신을 선언형으로 정의하고 상태 파일로 관리합니다.
+- VMware의 REST API를 통해 복제, 전원, 네트워크를 제어합니다.
+- 생성된 가상머신은 Workstation 목록에 중복 없이 등록합니다.
+
+### 4. 노드 구성 (Ansible)
+
+- Terraform 출력에서 인벤토리를 만들어 SSH로 노드를 구성합니다.
+- 같은 플레이북을 다시 실행해도 결과가 같도록(멱등성) 작성합니다.
+- 물리 GPU 노드는 호스트 콘솔에서 명시적으로 실행할 때만 합류시킵니다.
+
+### 5. 운영 원칙
+
+- 도구와 provider 버전은 고정하고, 비밀값은 코드에 두지 않습니다.
+- Terraform이 지원하지 않는 작업만 스크립트로 보완합니다.
+- GPU는 가상머신에 넘기지 않고 물리 호스트에서 직접 사용합니다.
 
 ## 요구 사항
 

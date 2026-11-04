@@ -219,7 +219,8 @@ Packer 템플릿은 실행 결과물이 아니라 IaC 소스이므로 프로젝�
 ├── docs/
 │   ├── vmware-iac-handoff.md
 │   ├── vmware-workstation-iac-workflow.dot
-│   └── vmware-workstation-iac-workflow-2560x1440.png
+│   ├── vmware-workstation-iac-workflow.png
+│   └── assets/iac-workflow.svg
 ├── .gitignore
 └── README.md
 ```
@@ -300,9 +301,9 @@ secrets/
 ```
 
 - 인계서: `vmware-iac-handoff.md`
-- 워크플로우 PNG: `vmware-workstation-iac-workflow-2560x1440.png`
-- 고해상도 PNG: `vmware-workstation-iac-workflow.png`
-- 편집용 Graphviz: `vmware-workstation-iac-workflow.dot`
+- 워크플로우 PNG (4020×2840): `vmware-workstation-iac-workflow.png`
+- 벡터 원본 SVG: `assets/iac-workflow.svg`
+- 구버전 Graphviz 원본(현재 그림과 다름): `vmware-workstation-iac-workflow.dot`
 
 새 저장소를 구성할 때 인계서, Graphviz 원본과 대표 PNG는 `docs/`로 이동하고, 고해상도 중복 PNG는 필요성이 없다면 저장소에 포함하지 않는다.
 
