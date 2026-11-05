@@ -1,0 +1,400 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2010 2072" width="2010" height="2072" role="img" aria-label="entry.sh 단계 스크립트 내부 흐름">
+<title>entry.sh 단계 스크립트 내부 흐름</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#131a33"/></linearGradient>
+<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3b5bff" stop-opacity=".15"/><stop offset="1" stop-color="#3b5bff" stop-opacity="0"/></radialGradient>
+<filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" width="2010" height="2072"><feGaussianBlur stdDeviation="5"/></filter>
+<filter id="shadow" filterUnits="userSpaceOnUse" x="0" y="0" width="2010" height="2072"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity=".45"/></filter>
+<marker id="m-35c4ff" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#35c4ff"/></marker>
+<marker id="m-a47bff" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 L4 6 Z" fill="#a47bff"/></marker>
+<style>
+text { font-family: "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; }
+.ct { fill: #f2f5ff; font-size: 21px; font-weight: 700; }
+.cl { fill: #a9b8e0; font-size: 15.5px; }
+.mono { font-family: "JetBrains Mono", "D2Coding", "Noto Sans Mono CJK KR", ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
+.pt { fill: #f2f5ff; font-size: 19px; font-weight: 700; }
+.pl { fill: #c4d0f2; font-size: 15.5px; }
+.lb { font-size: 14px; font-weight: 700; }
+.flow { stroke-dasharray: 12 9; animation: dash 1.2s linear infinite; }
+.dash { stroke-dasharray: 8 8; }
+@keyframes dash { to { stroke-dashoffset: -21; } }
+@media (prefers-reduced-motion: reduce) { .flow { animation: none; } }
+</style>
+</defs>
+<rect width="2010" height="2072" rx="22" fill="url(#bg)"/>
+<circle cx="1246" cy="1036" r="1243" fill="url(#glow)"/>
+<text x="50" y="68" style="fill:#f2f5ff;font-size:38px;font-weight:800">entry.sh 단계별 내부 흐름</text>
+<text x="50" y="104" style="fill:#9fb0d8;font-size:17px">entry.sh 가 부르는 단계 스크립트가 각자 안에서 무엇을 어떤 순서로 하는지 정리했습니다.</text>
+<g filter="url(#shadow)"><rect x="50" y="130" width="1910" height="96" rx="16" fill="#0e2828" stroke="#2fd4c8" stroke-width="2"/></g>
+<text x="72" y="169" class="ct" style="font-size:19px">scripts/lib/common.sh · 모든 스크립트가 source 해서 공유</text>
+<text x="72" y="192" class="cl" style="font-size:15.5px">경로 변수(XDG) · vmrest 접속 정보 · pinned-versions.env 의 PIN_* 고정 버전 · log() / die() · vmrest 자격증명 · vmrest API 호출 함수</text>
+<g filter="url(#shadow)"><rect x="50" y="266" width="270" height="150" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="72" y="305" class="ct" style="font-size:20px">vmrest 시작</text>
+<text x="72" y="330" class="mono" fill="#35c4ff" style="font-size:14.5px">vmrest-start.sh</text>
+<text x="72" y="353" class="cl" style="font-size:15.5px">REST API 를 127.0.0.1</text>
+<text x="72" y="376" class="cl" style="font-size:15.5px">에서만 연다</text>
+<rect x="238.125" y="382" width="70" height="24" rx="12" fill="#35c4ff" fill-opacity=".16" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="273.0625" y="399" text-anchor="middle" class="lb" fill="#35c4ff" style="font-size:12.5px">entry 1</text>
+<g filter="url(#shadow)"><rect x="350" y="291" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="317" r="13" fill="#35c4ff"/><text x="374" y="323" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="323" class="ct" style="font-size:17.5px">이미 실행 중?</text>
+<text x="366" y="349" class="cl" style="font-size:14.5px">8697 포트에 뭔가 떠 있으면</text>
+<text x="366" y="370" class="cl" style="font-size:14.5px">그대로 성공 종료</text>
+<path d="M653 341 L673 341" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 341 L673 341" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="291" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="317" r="13" fill="#35c4ff"/><text x="702" y="323" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="323" class="ct" style="font-size:17.5px">인증서·키 확인</text>
+<text x="694" y="349" class="cl" style="font-size:14.5px">vmrest.crt · vmrest.key 가</text>
+<text x="694" y="370" class="cl" style="font-size:14.5px">있으면 백그라운드 실행</text>
+<path d="M981 341 L1001 341" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 341 L1001 341" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="291" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="317" r="13" fill="#35c4ff"/><text x="1030" y="323" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1052" y="323" class="ct" style="font-size:17.5px">포트 대기</text>
+<text x="1022" y="349" class="cl" style="font-size:14.5px">최대 10초 (0.5초 × 20)</text>
+<text x="1022" y="370" class="cl" style="font-size:14.5px">열릴 때까지 확인</text>
+<path d="M1309 341 L1329 341" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1309 341 L1329 341" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1334" y="291" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1358" cy="317" r="13" fill="#35c4ff"/><text x="1358" y="323" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1380" y="323" class="ct" style="font-size:17.5px">루프백 검사</text>
+<text x="1350" y="349" class="cl" style="font-size:14.5px">127.0.0.1 · [::1] 외에</text>
+<text x="1350" y="370" class="cl" style="font-size:14.5px">열렸으면 종료하고 실패</text>
+<g filter="url(#shadow)"><rect x="50" y="446" width="270" height="224" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="72" y="485" class="ct" style="font-size:20px">ISO 다운로드·검증</text>
+<text x="72" y="510" class="mono" fill="#35c4ff" style="font-size:14.5px">fetch-rocky-iso.sh</text>
+<text x="72" y="533" class="cl" style="font-size:15.5px">Rocky 9.8 DVD 를</text>
+<text x="72" y="556" class="cl" style="font-size:15.5px">3단 검증</text>
+<rect x="238.125" y="636" width="70" height="24" rx="12" fill="#35c4ff" fill-opacity=".16" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="273.0625" y="653" text-anchor="middle" class="lb" fill="#35c4ff" style="font-size:12.5px">entry 2</text>
+<g filter="url(#shadow)"><rect x="350" y="446" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="472" r="13" fill="#35c4ff"/><text x="374" y="478" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="478" class="ct" style="font-size:17.5px">주소·경로</text>
+<text x="366" y="504" class="cl" style="font-size:14.5px">미러 주소 · iso-cache</text>
+<text x="366" y="525" class="cl" style="font-size:14.5px">경로 설정</text>
+<path d="M653 496 L673 496" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 496 L673 496" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="446" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="472" r="13" fill="#35c4ff"/><text x="702" y="478" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="478" class="ct" style="font-size:17.5px">키·CHECKSUM</text>
+<text x="694" y="504" class="cl" style="font-size:14.5px">서명 키 · CHECKSUM ·</text>
+<text x="694" y="525" class="cl" style="font-size:14.5px">CHECKSUM.asc 받기</text>
+<path d="M981 496 L1001 496" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 496 L1001 496" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="446" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="472" r="13" fill="#35c4ff"/><text x="1030" y="478" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1052" y="478" class="ct" style="font-size:17.5px">서명 검증</text>
+<text x="1022" y="504" class="cl" style="font-size:14.5px">키 지문 = 고정값</text>
+<text x="1022" y="525" class="cl" style="font-size:14.5px">gpgv 로 서명 확인</text>
+<path d="M1156 549 L1156 558 L500 558 L500 565" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1156 549 L1156 558 L500 558 L500 565" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="350" y="570" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="596" r="13" fill="#35c4ff"/><text x="374" y="602" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="396" y="602" class="ct" style="font-size:17.5px">해시 비교</text>
+<text x="366" y="628" class="cl" style="font-size:14.5px">서명된 CHECKSUM 속</text>
+<text x="366" y="649" class="cl" style="font-size:14.5px">SHA-256 = 고정값</text>
+<path d="M653 620 L673 620" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 620 L673 620" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="570" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="596" r="13" fill="#35c4ff"/><text x="702" y="602" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">5</text>
+<text x="724" y="602" class="ct" style="font-size:17.5px">기존 ISO 확인</text>
+<text x="694" y="628" class="cl" style="font-size:14.5px">크기·해시 맞으면</text>
+<text x="694" y="649" class="cl" style="font-size:14.5px">여기서 끝 (빠른 경로)</text>
+<path d="M981 620 L1001 620" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 620 L1001 620" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="570" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="596" r="13" fill="#35c4ff"/><text x="1030" y="602" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">6</text>
+<text x="1052" y="602" class="ct" style="font-size:17.5px">다운로드·검증</text>
+<text x="1022" y="628" class="cl" style="font-size:14.5px">이어받기(.part) → 크기·해시</text>
+<text x="1022" y="649" class="cl" style="font-size:14.5px">→ 최종 이름으로 변경</text>
+<g filter="url(#shadow)"><rect x="50" y="700" width="270" height="348" rx="16" fill="#0f2238" stroke="#35c4ff" stroke-width="2"/></g>
+<text x="72" y="739" class="ct" style="font-size:20px">사전 점검</text>
+<text x="72" y="764" class="mono" fill="#35c4ff" style="font-size:14.5px">preflight.sh</text>
+<text x="72" y="787" class="cl" style="font-size:15.5px">읽기 전용 검사</text>
+<text x="72" y="810" class="cl" style="font-size:15.5px">FAIL ≥ 1 이면 exit 1</text>
+<rect x="238.125" y="1014" width="70" height="24" rx="12" fill="#35c4ff" fill-opacity=".16" stroke="#35c4ff" stroke-opacity=".7"/>
+<text x="273.0625" y="1031" text-anchor="middle" class="lb" fill="#35c4ff" style="font-size:12.5px">entry 3</text>
+<g filter="url(#shadow)"><rect x="350" y="700" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="726" r="13" fill="#35c4ff"/><text x="374" y="732" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="732" class="ct" style="font-size:17.5px">프로젝트 파일</text>
+<text x="366" y="758" class="cl" style="font-size:14.5px">verify-project.sh 실행</text>
+<path d="M653 750 L673 750" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 750 L673 750" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="700" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="726" r="13" fill="#35c4ff"/><text x="702" y="732" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="732" class="ct" style="font-size:17.5px">호스트</text>
+<text x="694" y="758" class="cl" style="font-size:14.5px">Linux x86_64 인지</text>
+<path d="M980 750 L1000 750" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 750 L1000 750" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="700" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="726" r="13" fill="#35c4ff"/><text x="1029" y="732" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1051" y="732" class="ct" style="font-size:17.5px">도구 버전</text>
+<text x="1021" y="758" class="cl" style="font-size:14.5px">PIN_* 고정값과 비교</text>
+<path d="M1308 750 L1328 750" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 750 L1328 750" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="700" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="726" r="13" fill="#35c4ff"/><text x="1357" y="732" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1379" y="732" class="ct" style="font-size:17.5px">VMware 모듈</text>
+<text x="1349" y="758" class="cl" style="font-size:14.5px">vmmon · vmnet 로드</text>
+<path d="M1635 750 L1655 750" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1635 750 L1655 750" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1660" y="700" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1684" cy="726" r="13" fill="#35c4ff"/><text x="1684" y="732" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">5</text>
+<text x="1706" y="732" class="ct" style="font-size:17.5px">vmnet8 NAT</text>
+<text x="1676" y="758" class="cl" style="font-size:14.5px">IPv4 · DHCP · NAT 데몬</text>
+<path d="M1810 803 L1810 812 L500 812 L500 819" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1810 803 L1810 812 L500 812 L500 819" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="350" y="824" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="850" r="13" fill="#35c4ff"/><text x="374" y="856" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">6</text>
+<text x="396" y="856" class="ct" style="font-size:17.5px">vmrest</text>
+<text x="366" y="882" class="cl" style="font-size:14.5px">루프백 · API 200 응답</text>
+<path d="M653 874 L673 874" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 874 L673 874" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="824" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="850" r="13" fill="#35c4ff"/><text x="702" y="856" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">7</text>
+<text x="724" y="856" class="ct" style="font-size:17.5px">비밀 파일</text>
+<text x="694" y="882" class="cl" style="font-size:14.5px">경로 · 권한</text>
+<path d="M980 874 L1000 874" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 874 L1000 874" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="824" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="850" r="13" fill="#35c4ff"/><text x="1029" y="856" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">8</text>
+<text x="1051" y="856" class="ct" style="font-size:17.5px">VM · UI 목록</text>
+<text x="1021" y="882" class="cl" style="font-size:14.5px">VMX 존재 · UI 1회 등록</text>
+<path d="M1308 874 L1328 874" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 874 L1328 874" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="824" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="850" r="13" fill="#35c4ff"/><text x="1357" y="856" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">9</text>
+<text x="1379" y="856" class="ct" style="font-size:17.5px">Rocky ISO</text>
+<text x="1349" y="882" class="cl" style="font-size:14.5px">크기 · 해시</text>
+<path d="M1635 874 L1655 874" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1635 874 L1655 874" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1660" y="824" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1684" cy="850" r="13" fill="#35c4ff"/><text x="1684" y="856" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">10</text>
+<text x="1706" y="856" class="ct" style="font-size:17.5px">용량</text>
+<text x="1676" y="882" class="cl" style="font-size:14.5px">디스크 40G · 메모리 14G</text>
+<path d="M1810 927 L1810 936 L500 936 L500 943" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1810 927 L1810 936 L500 936 L500 943" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="350" y="948" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="974" r="13" fill="#35c4ff"/><text x="374" y="980" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">11</text>
+<text x="396" y="980" class="ct" style="font-size:17.5px">provider 해시</text>
+<text x="366" y="1006" class="cl" style="font-size:14.5px">.terraform.lock.hcl</text>
+<path d="M653 998 L673 998" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 998 L673 998" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="678" y="948" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="974" r="13" fill="#35c4ff"/><text x="702" y="980" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">12</text>
+<text x="724" y="980" class="ct" style="font-size:17.5px">Packer 플러그인</text>
+<text x="694" y="1006" class="cl" style="font-size:14.5px">SHA-256 기록과 비교</text>
+<path d="M980 998 L1000 998" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 998 L1000 998" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="948" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="974" r="13" fill="#35c4ff"/><text x="1029" y="980" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">13</text>
+<text x="1051" y="980" class="ct" style="font-size:17.5px">골든 이미지</text>
+<text x="1021" y="1006" class="cl" style="font-size:14.5px">무결성 · 읽기 전용</text>
+<path d="M1308 998 L1328 998" stroke="#35c4ff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 998 L1328 998" stroke="#35c4ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-35c4ff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="948" width="300" height="100" rx="14" fill="#0f2238" stroke="#35c4ff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="974" r="13" fill="#35c4ff"/><text x="1357" y="980" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">14</text>
+<text x="1379" y="980" class="ct" style="font-size:17.5px">원격 접속</text>
+<text x="1349" y="1006" class="cl" style="font-size:14.5px">TeamViewer · SSH 표시</text>
+<g filter="url(#shadow)"><rect x="50" y="1078" width="270" height="224" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="1117" class="ct" style="font-size:20px">골든 이미지 빌드</text>
+<text x="72" y="1142" class="mono" fill="#a47bff" style="font-size:14.5px">golden-build.sh</text>
+<text x="72" y="1165" class="cl" style="font-size:15.5px">Rocky 9.8 Server</text>
+<text x="72" y="1188" class="cl" style="font-size:15.5px">(GUI 없음) · 약 11분</text>
+<text x="72" y="1211" class="cl" style="font-size:15.5px">이미지는 불변</text>
+<rect x="238.125" y="1268" width="70" height="24" rx="12" fill="#a47bff" fill-opacity=".16" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="273.0625" y="1285" text-anchor="middle" class="lb" fill="#a47bff" style="font-size:12.5px">entry 4</text>
+<g filter="url(#shadow)"><rect x="350" y="1078" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1104" r="13" fill="#a47bff"/><text x="374" y="1110" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="1110" class="ct" style="font-size:17.5px">이름·경로</text>
+<text x="366" y="1136" class="cl" style="font-size:14.5px">k3slab-golden-rocky98-</text>
+<text x="366" y="1157" class="cl" style="font-size:14.5px">&lt;버전&gt; 으로 결정</text>
+<path d="M653 1128 L673 1128" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1128 L673 1128" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1078" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1104" r="13" fill="#a47bff"/><text x="702" y="1110" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="1110" class="ct" style="font-size:17.5px">사전 검사</text>
+<text x="694" y="1136" class="cl" style="font-size:14.5px">ISO 크기·해시 · 같은 버전이</text>
+<text x="694" y="1157" class="cl" style="font-size:14.5px">이미 있으면 중단</text>
+<path d="M980 1128 L1000 1128" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 1128 L1000 1128" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="1078" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="1104" r="13" fill="#a47bff"/><text x="1029" y="1110" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1051" y="1110" class="ct" style="font-size:17.5px">빌드 IP</text>
+<text x="1021" y="1136" class="cl" style="font-size:14.5px">빌드 VM 의 고정 IP</text>
+<text x="1021" y="1157" class="cl" style="font-size:14.5px">결정</text>
+<path d="M1308 1128 L1328 1128" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 1128 L1328 1128" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="1078" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="1104" r="13" fill="#a47bff"/><text x="1357" y="1110" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1379" y="1110" class="ct" style="font-size:17.5px">변수 전달</text>
+<text x="1349" y="1136" class="cl" style="font-size:14.5px">PKR_VAR_&lt;이름&gt; 환경변수</text>
+<text x="1349" y="1157" class="cl" style="font-size:14.5px">→ Packer 변수</text>
+<path d="M1635 1128 L1655 1128" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1635 1128 L1655 1128" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1660" y="1078" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1684" cy="1104" r="13" fill="#a47bff"/><text x="1684" y="1110" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">5</text>
+<text x="1706" y="1110" class="ct" style="font-size:17.5px">Packer 빌드</text>
+<text x="1676" y="1136" class="cl" style="font-size:14.5px">init → validate → build</text>
+<text x="1676" y="1157" class="cl" style="font-size:14.5px">Kickstart 무인 설치</text>
+<path d="M1810 1181 L1810 1190 L500 1190 L500 1197" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1810 1181 L1810 1190 L500 1190 L500 1197" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="350" y="1202" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1228" r="13" fill="#a47bff"/><text x="374" y="1234" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">6</text>
+<text x="396" y="1234" class="ct" style="font-size:17.5px">이름 보정</text>
+<text x="366" y="1260" class="cl" style="font-size:14.5px">VMX displayName</text>
+<text x="366" y="1281" class="cl" style="font-size:14.5px">키 대소문자 보정</text>
+<path d="M653 1252 L673 1252" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1252 L673 1252" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1202" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1228" r="13" fill="#a47bff"/><text x="702" y="1234" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">7</text>
+<text x="724" y="1234" class="ct" style="font-size:17.5px">해시·잠금</text>
+<text x="694" y="1260" class="cl" style="font-size:14.5px">VMX · VMDK SHA-256 기록</text>
+<text x="694" y="1281" class="cl" style="font-size:14.5px">→ 읽기 전용</text>
+<path d="M980 1252 L1000 1252" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 1252 L1000 1252" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="1202" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="1228" r="13" fill="#a47bff"/><text x="1029" y="1234" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">8</text>
+<text x="1051" y="1234" class="ct" style="font-size:17.5px">vmrest 등록</text>
+<text x="1021" y="1260" class="cl" style="font-size:14.5px">Terraform 이 이 이름으로</text>
+<text x="1021" y="1281" class="cl" style="font-size:14.5px">원본을 찾아 복제</text>
+<path d="M1308 1252 L1328 1252" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 1252 L1328 1252" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="1202" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="1228" r="13" fill="#a47bff"/><text x="1357" y="1234" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">9</text>
+<text x="1379" y="1234" class="ct" style="font-size:17.5px">image.json</text>
+<text x="1349" y="1260" class="cl" style="font-size:14.5px">이름 · id · ISO · OS</text>
+<text x="1349" y="1281" class="cl" style="font-size:14.5px">시각 · Packer 버전 · 해시</text>
+<g filter="url(#shadow)"><rect x="50" y="1332" width="270" height="150" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="1371" class="ct" style="font-size:20px">Terraform 래퍼</text>
+<text x="72" y="1396" class="mono" fill="#a47bff" style="font-size:14.5px">tf.sh</text>
+<text x="72" y="1419" class="cl" style="font-size:15.5px">terraform 은 항상</text>
+<text x="72" y="1442" class="cl" style="font-size:15.5px">이 스크립트로 실행</text>
+<rect x="209.625" y="1448" width="98" height="24" rx="12" fill="#a47bff" fill-opacity=".16" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="258.8125" y="1465" text-anchor="middle" class="lb" fill="#a47bff" style="font-size:12.5px">entry 5·6·7</text>
+<g filter="url(#shadow)"><rect x="350" y="1357" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1383" r="13" fill="#a47bff"/><text x="374" y="1389" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="1389" class="ct" style="font-size:17.5px">환경 준비</text>
+<text x="366" y="1415" class="cl" style="font-size:14.5px">vmrest 자격증명 → TF_VAR_*</text>
+<text x="366" y="1436" class="cl" style="font-size:14.5px">state 는 ~/.local/state</text>
+<path d="M653 1407 L673 1407" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1407 L673 1407" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1357" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1383" r="13" fill="#a47bff"/><text x="702" y="1389" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="1389" class="ct" style="font-size:17.5px">명령별 사전 작업</text>
+<text x="694" y="1415" class="cl" style="font-size:14.5px">apply · destroy 전에 state</text>
+<text x="694" y="1436" class="cl" style="font-size:14.5px">백업 (최근 30개 유지)</text>
+<path d="M981 1407 L1001 1407" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 1407 L1001 1407" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="1357" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="1383" r="13" fill="#a47bff"/><text x="1030" y="1389" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1052" y="1389" class="ct" style="font-size:17.5px">terraform 실행</text>
+<text x="1022" y="1415" class="cl" style="font-size:14.5px">-parallelism=1 강제</text>
+<text x="1022" y="1436" class="cl" style="font-size:14.5px">받은 인자는 그대로 전달</text>
+<g filter="url(#shadow)"><rect x="50" y="1512" width="270" height="150" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="1551" class="ct" style="font-size:20px">VM 생성·전원·UI</text>
+<text x="72" y="1576" class="mono" fill="#a47bff" style="font-size:14.5px">cluster-apply.sh</text>
+<text x="72" y="1599" class="cl" style="font-size:15.5px">apply 를 두 번 하는</text>
+<text x="72" y="1622" class="cl" style="font-size:15.5px">이유: provider 제약</text>
+<rect x="238.125" y="1628" width="70" height="24" rx="12" fill="#a47bff" fill-opacity=".16" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="273.0625" y="1645" text-anchor="middle" class="lb" fill="#a47bff" style="font-size:12.5px">entry 6</text>
+<g filter="url(#shadow)"><rect x="350" y="1537" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1563" r="13" fill="#a47bff"/><text x="374" y="1569" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="1569" class="ct" style="font-size:17.5px">인자 나누기</text>
+<text x="366" y="1595" class="cl" style="font-size:14.5px">-auto-approve · -replace</text>
+<text x="366" y="1616" class="cl" style="font-size:14.5px">· -var 를 용도별로 분리</text>
+<path d="M653 1587 L673 1587" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1587 L673 1587" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1537" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1563" r="13" fill="#a47bff"/><text x="702" y="1569" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="1569" class="ct" style="font-size:17.5px">plan 저장</text>
+<text x="694" y="1595" class="cl" style="font-size:14.5px">plan 을 파일로 저장해</text>
+<text x="694" y="1616" class="cl" style="font-size:14.5px">새로 생길 VM 목록 추출</text>
+<path d="M980 1587 L1000 1587" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M980 1587 L1000 1587" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1005" y="1537" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1029" cy="1563" r="13" fill="#a47bff"/><text x="1029" y="1569" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1051" y="1569" class="ct" style="font-size:17.5px">1단계: 꺼진 채 생성</text>
+<text x="1021" y="1595" class="cl" style="font-size:14.5px">새 VM 만 power off 로</text>
+<text x="1021" y="1616" class="cl" style="font-size:14.5px">(켜진 채 생성하면 실패)</text>
+<path d="M1308 1587 L1328 1587" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1308 1587 L1328 1587" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1333" y="1537" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1357" cy="1563" r="13" fill="#a47bff"/><text x="1357" y="1569" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1379" y="1569" class="ct" style="font-size:17.5px">2단계: 전원 켜기</text>
+<text x="1349" y="1595" class="cl" style="font-size:14.5px">원래 상태(on)로 apply</text>
+<text x="1349" y="1616" class="cl" style="font-size:14.5px">기존 VM 은 변화 없음</text>
+<path d="M1635 1587 L1655 1587" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1635 1587 L1655 1587" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1660" y="1537" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1684" cy="1563" r="13" fill="#a47bff"/><text x="1684" y="1569" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">5</text>
+<text x="1706" y="1569" class="ct" style="font-size:17.5px">3단계: UI 등록</text>
+<text x="1676" y="1595" class="cl" style="font-size:14.5px">register-vms.sh 호출</text>
+<text x="1676" y="1616" class="cl" style="font-size:14.5px">빠진 VM 만 등록</text>
+<g filter="url(#shadow)"><rect x="50" y="1692" width="270" height="150" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="1731" class="ct" style="font-size:20px">UI 목록 등록</text>
+<text x="72" y="1756" class="mono" fill="#a47bff" style="font-size:14.5px">register-vms.sh</text>
+<text x="72" y="1779" class="cl" style="font-size:15.5px">cluster-apply 의</text>
+<text x="72" y="1802" class="cl" style="font-size:15.5px">3단계에서 호출</text>
+<rect x="263.0" y="1808" width="45" height="24" rx="12" fill="#a47bff" fill-opacity=".16" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="285.5" y="1825" text-anchor="middle" class="lb" fill="#a47bff" style="font-size:12.5px">멱등</text>
+<g filter="url(#shadow)"><rect x="350" y="1717" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1743" r="13" fill="#a47bff"/><text x="374" y="1749" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="1749" class="ct" style="font-size:17.5px">인자 검사</text>
+<text x="366" y="1775" class="cl" style="font-size:14.5px">-h · 인자 없음 확인</text>
+<path d="M653 1767 L673 1767" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1767 L673 1767" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1717" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1743" r="13" fill="#a47bff"/><text x="702" y="1749" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="1749" class="ct" style="font-size:17.5px">등록 횟수 확인</text>
+<text x="694" y="1775" class="cl" style="font-size:14.5px">UI 목록 파일에 VMX 가</text>
+<text x="694" y="1796" class="cl" style="font-size:14.5px">몇 번 있는지 세기</text>
+<path d="M981 1767 L1001 1767" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 1767 L1001 1767" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="1717" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="1743" r="13" fill="#a47bff"/><text x="1030" y="1749" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1052" y="1749" class="ct" style="font-size:17.5px">노드 읽기</text>
+<text x="1022" y="1775" class="cl" style="font-size:14.5px">Terraform output nodes</text>
+<text x="1022" y="1796" class="cl" style="font-size:14.5px">에서 VM 목록</text>
+<path d="M1309 1767 L1329 1767" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1309 1767 L1329 1767" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1334" y="1717" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1358" cy="1743" r="13" fill="#a47bff"/><text x="1358" y="1749" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1380" y="1749" class="ct" style="font-size:17.5px">노드별 등록</text>
+<text x="1350" y="1775" class="cl" style="font-size:14.5px">이미 있으면 건너뜀 · 없으면</text>
+<text x="1350" y="1796" class="cl" style="font-size:14.5px">POST /vms/registration</text>
+<g filter="url(#shadow)"><rect x="50" y="1872" width="270" height="150" rx="16" fill="#1a1535" stroke="#a47bff" stroke-width="2"/></g>
+<text x="72" y="1911" class="ct" style="font-size:20px">인벤토리 생성</text>
+<text x="72" y="1936" class="mono" fill="#a47bff" style="font-size:14.5px">render-inventory.sh</text>
+<text x="72" y="1959" class="cl" style="font-size:15.5px">Ansible 이 접속할</text>
+<text x="72" y="1982" class="cl" style="font-size:15.5px">VM 목록 파일 생성</text>
+<rect x="238.125" y="1988" width="70" height="24" rx="12" fill="#a47bff" fill-opacity=".16" stroke="#a47bff" stroke-opacity=".7"/>
+<text x="273.0625" y="2005" text-anchor="middle" class="lb" fill="#a47bff" style="font-size:12.5px">entry 7</text>
+<g filter="url(#shadow)"><rect x="350" y="1897" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="374" cy="1923" r="13" fill="#a47bff"/><text x="374" y="1929" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">1</text>
+<text x="396" y="1929" class="ct" style="font-size:17.5px">노드 읽기</text>
+<text x="366" y="1955" class="cl" style="font-size:14.5px">Terraform output nodes</text>
+<text x="366" y="1976" class="cl" style="font-size:14.5px">비어 있으면 안내 후 종료</text>
+<path d="M653 1947 L673 1947" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M653 1947 L673 1947" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="678" y="1897" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="702" cy="1923" r="13" fill="#a47bff"/><text x="702" y="1929" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">2</text>
+<text x="724" y="1929" class="ct" style="font-size:17.5px">IP 조회</text>
+<text x="694" y="1955" class="cl" style="font-size:14.5px">vmrest /vms/{id}/ip</text>
+<text x="694" y="1976" class="cl" style="font-size:14.5px">5초 간격 최대 300초</text>
+<path d="M981 1947 L1001 1947" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M981 1947 L1001 1947" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1006" y="1897" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1030" cy="1923" r="13" fill="#a47bff"/><text x="1030" y="1929" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">3</text>
+<text x="1052" y="1929" class="ct" style="font-size:17.5px">호스트 키 정리</text>
+<text x="1022" y="1955" class="cl" style="font-size:14.5px">Ansible 전용 known_hosts 의</text>
+<text x="1022" y="1976" class="cl" style="font-size:14.5px">예전 SSH 키 삭제</text>
+<path d="M1309 1947 L1329 1947" stroke="#a47bff" stroke-width="9" opacity=".32" filter="url(#blur)" fill="none" stroke-linejoin="round"/>
+<path class="flow" d="M1309 1947 L1329 1947" stroke="#a47bff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#m-a47bff)"/>
+<g filter="url(#shadow)"><rect x="1334" y="1897" width="300" height="100" rx="14" fill="#1a1535" stroke="#a47bff" stroke-opacity=".85" stroke-width="1.8"/></g>
+<circle cx="1358" cy="1923" r="13" fill="#a47bff"/><text x="1358" y="1929" text-anchor="middle" style="fill:#0b1020;font-size:14px;font-weight:800">4</text>
+<text x="1380" y="1929" class="ct" style="font-size:17.5px">파일 쓰기</text>
+<text x="1350" y="1955" class="cl" style="font-size:14.5px">.generated/terraform.yml</text>
+<text x="1350" y="1976" class="cl" style="font-size:14.5px">(Git 제외)</text>
+</svg>
