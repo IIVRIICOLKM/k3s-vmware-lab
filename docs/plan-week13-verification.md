@@ -3,7 +3,7 @@
 연구제안서 14·15번 슬라이드의 "중단 상황 시나리오"를 실제로 돌리기 위한 설계 문서다(검증 실험 13–16주).
 물리 호스트가 하나인 구성에서 **막을 수 없는 장애**와 **막을 수 있는 장애**를 나누고, 막을 수 있는 장애를 하나씩 일으켜 복구 시간과 영향을 잰다.
 
-- 상태(2026-11-22, 11주차): **설계와 실행 스크립트까지 끝났고, 13주 몫(`inspect`, F7, F8 CPU, F1 CPU)을 실제 클러스터에서 실행했다.** 결과는 `docs/labs/fault-inspect-20261122-1940.md`, `fault-overload-20261122-1943.md`, `fault-bad-deploy-20261122-2038.md`, `fault-infer-kill-20261122-2041.md`와 `docs/labs/fault-week13-summary-20261122.md`(요약·인계)에 있다. 나머지(F2~F6, GPU 변형)는 아직 하지 않았다. 실험 실행은 실험마다 총괄 승인을 받는다.
+- 상태(2026-11-23, 12주차 첫날): **설계와 실행 스크립트까지 끝났고, 13주 몫(`inspect`, F7, F8 CPU, F1 CPU)에 이어 14주 몫(순서 4~6)을 앞당겨 실행했다.** 13주 몫 결과는 `docs/labs/fault-inspect-20261122-1940.md`, `fault-overload-20261122-1943.md`, `fault-bad-deploy-20261122-2038.md`, `fault-infer-kill-20261122-2041.md`와 `docs/labs/fault-week13-summary-20261122.md`에, 14주 몫(F6, F4, F1 CPU 반복·graceful, GPU 변형 F5·F1·F8, F2 force·graceful)의 보고서와 요약·인계는 `docs/labs/fault-week14-summary-20261123.md`에 있다(실행 결과는 6절). **남은 것은 F3 `node-stop`(기본 → `--spread` → `--toleration-seconds 30`, 15주 몫)과 재시험이다.** 실험 실행은 실험마다 총괄 승인을 받는다.
 - 실행 스크립트: `scripts/fault-test.sh` (하위 명령 하나가 실험 하나). `--dry-run`으로 절차만 볼 수 있다.
 - 결과 보고서: 실험마다 `docs/labs/fault-<실험>-<날짜>.md`가 만들어진다.
 - 근거: `docs/progress-week09.md`("장애 영역 정리"), 기존 시험 기록 `docs/labs/`, 저장소의 매니페스트·차트·Ansible 설정.
@@ -90,9 +90,9 @@
 |---|---|
 | 절차 | ① 추론 릴리스 `infer-fault` 배포(Ready까지) ② 프로버 파드가 초당 약 10번 `POST /infer`를 보냄, 평상시 전부 200인지 확인 ③ T0 기록 후 파드 삭제(`--mode force`: `--grace-period=0 --force` / `graceful`: SIGTERM + preStop 5초) ④ 새 파드 Ready까지 1초 간격 확인(T1) ⑤ 10초 더 관찰 |
 | 측정 | 복구 시간 T1−T0. 새 파드의 스케줄·컨테이너 시작·Ready 시각(쿠버네티스 기록, 1초 단위). 프로버 로그에서 실패 요청 수·코드·첫~마지막 실패 구간. 시도한 파드 수·재시작 수. `/metrics`의 `device`. (Prometheus가 있으면) 요청 결과별 증가량 |
-| 성공 기준 | 새 파드가 사람 개입 없이 Ready / 복구 뒤 마지막 30개 요청이 모두 200 / 장치가 기대와 같음 / 복구 시간 60초(GPU 120초) 이내 — **이 시간은 임시 기준이고 실측 뒤 조정한다** |
+| 성공 기준 | 새 파드가 사람 개입 없이 Ready / 복구 뒤 마지막 30개 요청이 모두 200 / 장치가 기대와 같음 / **복구 시간 10초 이내**(CPU·GPU 공통). 근거: CPU force 3회 1.4·1.5·1.4초, graceful 1.3초, GPU(`git-760a534`) force 1.5초(2026-11-22·23 실측, 실측 최댓값의 약 6.7배). **작은 모델(`model.k3sm` 38 KB)이고 이미지가 노드에 있을 때의 기준이다.** 큰 모델이나 이미지를 새로 받아야 하는 경우는 같은 기준을 쓰지 않고 다시 잰 뒤 정한다. 실패 요청 수는 판정에 쓰지 않고 관찰값으로 남긴다(CPU 4회 중 1회만 1개, 나머지 0) |
 | 되돌리기 | `helm uninstall infer-fault` → 네임스페이스 삭제(프로버 포함, GPU도 반환) |
-| 변형 | `--gpu 1`(GPU 승인 필요): 모델 적재와 CUDA 초기화가 더해진다. **예상:** 강제 삭제 직후 새 파드가 GPU를 아직 쥔 예전 컨테이너 때문에 Pending이나 배정 실패가 될 수 있다. 시도한 파드 수로 확인한다. |
+| 변형 | `--gpu 1`(GPU 승인 필요): 모델 적재와 CUDA 초기화가 더해진다. **예상:** 강제 삭제 직후 새 파드가 GPU를 아직 쥔 예전 컨테이너 때문에 Pending이나 배정 실패가 될 수 있다. 시도한 파드 수로 확인한다. **실측(11/23, 1회): Pending·배정 실패 없음, 복구 1.5초(6.1절).** |
 
 ### F2 학습 파드 중단 → 체크포인트 재개 (`train-kill`)
 
@@ -209,6 +209,21 @@ Prometheus 쿼리(스크립트에 들어 있음, 모니터링 배포 뒤 확인)
 | 5 | F4 `mysql-down` | DB를 잠깐 내림: 진행 중인 작업이 없는 시간에 |
 | 6 | F5 `gpu-busy`, F2 `train-kill`, F1·F8 GPU 변형 | GPU를 쓴다. 한 번에 하나, 끝나면 바로 내린다 |
 | 7 | F3 `node-stop`(기본 → `--spread` → `--toleration-seconds 30`) | 가장 파괴적. 노드에 다른 파드가 없을 때, 마지막에 |
+
+### 6.1 실행 결과 (2026-11-23, 12주차 첫날에 14주 몫을 앞당겨 실행)
+
+| 순서 | 실험 | 보고서(`docs/labs/`) | 결과 | 핵심 |
+|---|---|---|---|---|
+| 4 | F6 `registry-down` | `fault-registry-down-20261123-0346.md` | PASS 8 / FAIL 0 | t_reg 1.6초, t_pull 40.7초, 노드에 이미지가 있으면 중단 중에도 1.4초에 시작 |
+| 5 | F4 `mysql-down` | `fault-mysql-down-20261123-0351.md` | PASS 11 / FAIL 0 | 추론 실패 0 / 1932, t_db 6.9초, **`job.sh submit`은 종료 코드 1이지만 약 120초 멈추고 "이미 있는 작업" 메시지를 찍음**(`job.sh` 수정 필요, 미수정) |
+| 6 | F1 CPU 반복·graceful | `fault-infer-kill-20261123-0357.md`, `-0358.md`, `-0359.md` | 각 PASS 8 / FAIL 0 | force 1.4·1.5·1.4초(13주 포함), graceful 1.3초, 판정 기준을 10초로 정함 |
+| 6 | F5 `gpu-busy` | `fault-gpu-busy-20261123-0402.md`(FAIL 1: 스크립트 타이밍 결함), `-0404.md`(고친 뒤) | 0404: PASS 11 / FAIL 0 | GPU 요청 파드 Pending(`Insufficient nvidia.com/gpu`), 대체 배포 Ready 약 1.7초, GPU 복귀 전환 12.5초·실패 3 / 154 (첫 실행 0 / 136) |
+| 6 | F1 GPU (force) | `fault-infer-kill-20261123-0407.md` | PASS 9 / FAIL 0 | 복구 1.5초, 실패 0 / 177, **Pending·배정 실패 없음**(예상과 다름) |
+| 6 | F8 GPU | `fault-bad-deploy-20261123-0409.md` | PASS 8 / FAIL 0 (서비스 유지 여부는 판정 안 함) | **서비스 공백 46.8초**(실패 90 / 299), 롤백 9.8초 |
+| 6 | F2 force | `fault-train-kill-20261123-0413.md` | PASS 8 / FAIL 0 | 중단→재개 15.8초, 재개 에폭 2, 완료 에폭 손실 0 |
+| 6 | F2 graceful | `fault-train-kill-20261123-0416.md`, `train-resume-20261123-0416.md` | PASS 9 / FAIL 0 (안쪽 6 / 0) | 중단→재개 14.1초, 재개 체크포인트 = 중단 체크포인트(손실 0) |
+
+계획과 달라진 점과 인계는 `docs/labs/fault-week14-summary-20261123.md`에 있다. 7번(F3 `node-stop`)은 하지 않았다.
 
 일정 제안(1주차 = 9/7, 총괄이 조정): 13주(11/30~12/6) `inspect`와 순서 1~3, 14주(12/7~13) 순서 4~6, 15주(12/14~20) 순서 7과 재시험, 16주(12/21~27) 결과 정리와 최종 보고.
 모니터링(12–14주)이 배포되면 Prometheus·Grafana 근거를 같이 남긴다.

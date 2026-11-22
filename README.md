@@ -197,4 +197,4 @@ k3s-vmware-lab/
 - [x] 작업 상태 저장소 (MySQL)
 - [x] CI/CD (코드 변경 → Jenkins 검사·이미지 → 태그 커밋 → Argo CD 배포)
 - [x] 모니터링
-- [ ] 장애 상황 검증 (과부하·잘못된 배포·추론 파드 강제 종료 완료, 설계는 [`docs/plan-week13-verification.md`](docs/plan-week13-verification.md))
+- [ ] 장애 상황 검증 (과부하·잘못된 배포·추론 파드 강제 종료, 레지스트리·MySQL 중단, GPU 변형, 학습 파드 중단·재개 완료. 노드 정지(F3)만 남음, 설계는 [`docs/plan-week13-verification.md`](docs/plan-week13-verification.md))

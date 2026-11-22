@@ -326,6 +326,10 @@ verify_restored() {
   check "노드 ${EXPECT_NODES}개 모두 Ready" all_nodes_ready
   check "MySQL이 1/1 Ready" deploy_ready "$DB_NS" mysql
   check "레지스트리가 1/1 Ready" deploy_ready "$DB_NS" registry
+  if ((GPU > 0)); then
+    wait_for 60 gpu_free || true
+    check "GPU를 쓰는 파드가 남아 있지 않음 (GPU 반납)" gpu_free
+  fi
 }
 
 # finish : 보고서 마무리와 종료 코드(FAIL이 있으면 1)
@@ -546,8 +550,8 @@ EOF
 
 # show_plan 실험 : --dry-run으로 절차·측정·성공 기준·되돌리기를 출력한다. 아무것도 실행하지 않는다.
 show_plan() {
-  local m=${MODEL_JOB:-"<--model-job 필요>"} dev=cpu lim=60 mode=${MODE:-} dn=${DOWN_SECONDS:-}
-  if ((GPU > 0)); then dev=cuda; lim=120; fi
+  local m=${MODEL_JOB:-"<--model-job 필요>"} dev=cpu lim=10 mode=${MODE:-} dn=${DOWN_SECONDS:-}
+  if ((GPU > 0)); then dev=cuda; fi
   printf '[dry-run] 아무것도 실행하지 않는다 (클러스터·VM 접속 없음, 보고서 없음)\n'
   case $1 in
     inspect) cat <<EOF
@@ -576,7 +580,7 @@ F1 infer-kill — 추론 파드 강제 종료
           4. 새 파드가 Ready 될 때까지 1초 간격으로 확인 → T1 기록, 쿠버네티스 시각으로 스케줄·시작·Ready 구간 분해
           5. 복구 뒤 10초 더 관찰 → 프로버 로그로 실패 요청 수·실패 구간 계산, /metrics의 device 확인
 측정    : 복구 시간(T1-T0), 실패 요청 수와 코드, 실패 구간, 파드 시도 수·재시작 수, (--prom) 요청 수 증가량·재시작 횟수
-성공    : 새 파드가 사람 개입 없이 Ready / 복구 뒤 요청이 모두 200 / 장치가 $dev / 복구 시간 ${lim}s 이내(참고 기준, 실측 뒤 조정)
+성공    : 새 파드가 사람 개입 없이 Ready / 복구 뒤 요청이 모두 200 / 장치가 $dev / 복구 시간 ${lim}s 이내(작은 모델 기준: 반복 실측 1.3~1.5초, 큰 모델은 다시 정한다)
 되돌리기: helm uninstall $INFER_RELEASE → 네임스페이스 삭제(프로버 포함, GPU 반환) → 노드·MySQL·레지스트리 정상 확인
 EOF
       ;;
@@ -765,8 +769,8 @@ vm_modules_loaded() { local m; m=$(lsmod | awk '{print $1}'); grep -qx vmmon <<<
 # F1 infer-kill : 추론 파드 강제 종료
 # ---------------------------------------------------------------------------------------------------------------------
 run_infer_kill() {
-  local mode=${MODE:-force} dev=cpu lim=60 old old_node t0 t1 recovered=0 dev_ok=0 newp sumr failed tl log_file
-  if ((GPU > 0)); then dev=cuda; lim=120; fi
+  local mode=${MODE:-force} dev=cpu lim=10 old old_node t0 t1 recovered=0 dev_ok=0 newp sumr failed tl log_file
+  if ((GPU > 0)); then dev=cuda; fi
   [[ "$mode" == force || "$mode" == graceful ]] || die "--mode must be force or graceful for infer-kill"
   need_model
   if ((GPU > 0)); then gpu_free || die "GPU is in use by: $(gpu_pods | tr '\n' ' ')"; fi
@@ -830,7 +834,7 @@ run_infer_kill() {
   check "새 파드가 사람 개입 없이 Ready" is_true "$recovered"
   check "복구 뒤 마지막 30개 요청이 모두 200" probe_tail_ok "$log_file" 30
   check "새 파드의 계산 장치가 $dev (/metrics의 device)" is_true "$dev_ok"
-  check "복구 시간이 ${lim}초 이내 (참고 기준, 실측 뒤 조정)" le "$(elapsed "$t0" "$t1")" "$lim"
+  check "복구 시간이 ${lim}초 이내 (작은 모델 기준: 반복 실측 1.3~1.5초, 큰 모델은 다시 정한다)" le "$(elapsed "$t0" "$t1")" "$lim"
   rm -f "$log_file"
 
   md "" "## 4. 되돌리기"
@@ -875,6 +879,7 @@ run_train_kill() {
   confirm "F2 train-kill($mode): 학습 Job($id)을 GPU로 실행하고 파드를 일부러 지웁니다."
   begin_report "F2 학습 파드 중단 → 체크포인트 재개 ($mode)"
   md "- 작업 번호 \`$id\`, 방식 \`$mode\` ($([[ $mode == graceful ]] && echo 'SIGTERM: 기존 scripts/train-resume-test.sh 재사용' || echo 'SIGKILL: --grace-period=0 --force'))"
+  ci_pods_block "실험 시작"
   push_restore restore_train
 
   if [[ "$mode" == graceful ]]; then
@@ -928,6 +933,9 @@ run_train_kill() {
   run_restores
   note "학습 릴리스만 지웠다. DB 행(\`scripts/job.sh status $id\`)과 \`$CKPT_ROOT/$id\`는 증거로 남긴다(폴더는 root 소유)."
   check "노드 ${EXPECT_NODES}개 모두 Ready" all_nodes_ready
+  wait_for 60 gpu_free || true
+  check "GPU를 쓰는 파드가 남아 있지 않음 (GPU 반납)" gpu_free
+  check "default의 train-$id Helm 릴리스가 지워짐" no_train_release "$id"
   finish
 }
 # same_ckpt 이력 : INTERRUPTED의 체크포인트와 첫 재개 행의 resumed_from이 같으면 성공 (경로는 컨테이너 안 /checkpoints/... 기준)
@@ -1164,6 +1172,7 @@ run_mysql_down() {
   begin_report "F4 MySQL 중단 시험 (${down}초)"
   md "- 대상 \`$DB_NS/mysql\` (replicas 1→0→1), 중단 ${down}초, $( ((with_infer)) && echo "추론 지속 확인(모델 작업 \`$MODEL_JOB\`, CPU)" || echo '추론 확인은 건너뜀(--model-job 없음)')"
   md "- 시작 전 jobs ${rows_before}행, job_events ${ev_before}행"
+  ci_pods_block "실험 시작"
   block "진행 중인 작업 (RUNNING·PENDING)" "$(db "SELECT job_id, job_type, status FROM jobs WHERE status IN ('RUNNING','PENDING')")"
 
   if ((with_infer)); then
@@ -1295,6 +1304,7 @@ run_gpu_busy() {
   confirm "F5 gpu-busy: GPU를 점유하는 파드를 띄우고 추론 파드를 GPU 있음/없음으로 번갈아 배포합니다(GPU 사용)."
   begin_report "F5 GPU 사용 불가 → CPU 대체 경로 시험"
   md "- 릴리스 \`$INFER_RELEASE\`, 모델 작업 \`$MODEL_JOB\`, 이미지 \`infer-worker:$TAG\`. GPU 점유 파드 \`fault-gpu-hold\`가 GPU 1개를 쥐고 있는 상황을 만든다."
+  ci_pods_block "실험 시작"
 
   ensure_ns
   push_restore restore_ns
@@ -1338,7 +1348,7 @@ run_gpu_busy() {
   probe_stop "$PROBE" "$log_file"
   sumr=$(probe_report "$log_file" "$t0")
   metric "전환(CPU→GPU) 중 실패 요청 수" "$(kv "$sumr" failed) / $(kv "$sumr" total) (코드별 $(kv "$sumr" codes))"
-  note "전환 구간 실패는 예상한 값이다: GPU 배포는 maxSurge 0이라 예전 파드를 먼저 내린다(charts/k3slab-workload/templates/infer-deployment.yaml)."
+  note "예상: GPU 배포는 maxSurge 0이라 예전 파드를 먼저 내려 전환 중 짧은 공백이 있을 것으로 보았다(charts/k3slab-workload/templates/infer-deployment.yaml). 실제 실패 수는 위 지표가 답이다. 전환 시간에는 infer_deploy의 Service 대기 5초가 들어 있다."
   prom_settle
   prom_report "Pending 파드 (GPU 점유 구간)" "max_over_time(kube_pod_status_phase{namespace=\"$FAULT_NS\",phase=\"Pending\"}[$(prom_window)])"
   check "GPU가 비면 GPU 경로(cuda)로 복귀" is_true "$gpu_back"
@@ -1346,7 +1356,8 @@ run_gpu_busy() {
 
   md "" "## 4. 되돌리기"
   run_restores
-  check "GPU를 쓰는 파드가 남아 있지 않음" gpu_free
+  wait_for 60 gpu_free || true
+  check "GPU를 쓰는 파드가 남아 있지 않음 (종료 중인 파드가 사라지기를 최대 60초 기다린 뒤 확인)" gpu_free
   verify_restored
   finish
 }
@@ -1398,6 +1409,7 @@ run_registry_down() {
   confirm "F6 registry-down: 레지스트리($DB_NS/registry)를 ${down}초 동안 내립니다. 그동안 Kaniko 빌드와 이미지 push는 실패합니다."
   begin_report "F6 레지스트리 중단 시험 (${down}초)"
   md "- 대상 \`$DB_NS/registry\`, 확인용 이미지 \`registry.k3slab.local:5000/infer-worker:$TAG\`, 확인용 파드는 worker-cpu-2(role=app)"
+  ci_pods_block "실험 시작"
 
   ensure_ns
   push_restore restore_ns

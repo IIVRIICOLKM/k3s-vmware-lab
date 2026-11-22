@@ -112,3 +112,4 @@
 | Jenkins CI (최종, 오프라인 검사와 앞선 시행은 `jenkins-*`) | [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) |
 | 코드 변경에서 배포까지 (성공 1회, 단위 시험 실패 차단 1회, 되돌리기 1회, 지연 p50/p95) | [`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) |
 | 장애 실험 첫 단계 요약 (점검, 과부하, 잘못된 배포, 추론 파드 강제 종료. 실험별 보고서는 `fault-*`) | [`labs/fault-week13-summary-20261122.md`](labs/fault-week13-summary-20261122.md) |
+| 장애 실험 14주 몫 요약 (레지스트리·MySQL 중단, 추론 파드 종료 반복·graceful, GPU 실험, 학습 파드 중단·재개, Grafana 화면. 실험별 보고서는 `fault-*-20261123-*`, 학습 재개는 `train-resume-20261123-0416.md`) | [`labs/fault-week14-summary-20261123.md`](labs/fault-week14-summary-20261123.md) |
