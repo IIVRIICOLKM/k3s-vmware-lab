@@ -1,31 +1,32 @@
-# 최종 보고서 (뼈대): 연구실 GPU 서버로 만드는 모델 학습·추론 실습 플랫폼
+# 최종 보고서 (초안): 연구실 GPU 서버로 만드는 모델 학습·추론 실습 플랫폼
 
-2026학년도 2학기 개별연구 2 · 최종 보고(제안서 일정 15–16주)를 미리 준비한 뼈대다. 마지막 갱신 2026-11-21(11주차).
+2026학년도 2학기 개별연구 2 · 최종 보고(제안서 일정 15–16주)를 미리 준비한 초안이다. 마지막 갱신 2026-11-22(11주차 마지막 날).
 
-- **끝난 부분**(인프라~작업 DB)은 측정값과 근거 파일 링크로 채웠다. 수치는 모두 `docs/labs/`의 실행 기록이나 해당 소스 파일에서 가져왔다.
-- **진행 중인 부분**(CI/CD, 모니터링, 검증 실험)은 `[진행 중]` 표시와 "채울 것" 목록만 두었다. 결과가 나오면 그 자리를 채운다.
+- **끝난 부분**(인프라~작업 DB, CI/CD, 모니터링)은 측정값과 근거 파일 링크로 채웠다. 수치는 모두 `docs/labs/`의 실행 기록이나 해당 소스 파일에서 가져왔다. 한 번 잰 값은 "1회"라고 적었다.
+- **검증 실험**은 13주 몫(점검, 과부하, 잘못된 배포, 추론 파드 강제 종료)만 11/22에 실행해 채웠다. 나머지 실험은 `[진행 중]`으로 두었다.
+- Jenkins(10–12주), Argo CD(11–13주), 모니터링(12–14주), 검증 실험 시작(13주)은 제안서 일정보다 앞당겨 11주차 안에 했다.
 - 제안서와 달라진 점은 [4절](#4-제안서와-달라진-점)에 표로 모았다.
 
 ## 작성 상태
 
-| 절 | 내용 | 상태 |
-|---|---|---|
-| 1 | 배경과 목표 | 작성 |
-| 2 | 전체 구성 | 작성 |
-| 3.1 | 인프라 코드화 (Packer · Terraform · Ansible) | 작성 |
-| 3.2 | K3s 클러스터와 GPU 호스트 | 작성 |
-| 3.3 | 이미지 · 레지스트리 · Helm | 작성 |
-| 3.4 | 학습 Job | 작성 |
-| 3.5 | 추론 워커 | 작성 |
-| 3.6 | 작업 상태 DB | 작성 |
-| 3.7 | CI/CD (Jenkins · Argo CD) | **[진행 중]** 자리만 |
-| 3.8 | 모니터링 (Prometheus · Grafana) | **[진행 중]** 자리만 |
-| 4 | 제안서와 달라진 점 | 작성 (3.7·3.8 결과가 나오면 보완) |
-| 5 | 검증 실험 | **[진행 중]** 항목만. 사전 시험 근거는 적어 둠 |
-| 6 | 결과 | 끝난 구현의 수치만 작성. 나머지 자리만 |
-| 7 | 한계 | 작성 (검증 뒤 보완) |
-| 8 | 결론 | 잠정 작성. 검증 뒤 확정 |
-| 부록 | 일정 대비 실제, 근거 파일 | 작성 |
+| 절 | 내용 | 상태 | 근거 |
+|---|---|---|---|
+| 1 | 배경과 목표 | 작성 | |
+| 2 | 전체 구성 | 작성 (2.1 노드 배치, 2.3 흐름은 11/22 반영. 구성도 그림은 갱신 필요) | `plan-week11-capacity.md` |
+| 3.1 | 인프라 코드화 (Packer · Terraform · Ansible) | 작성 | |
+| 3.2 | K3s 클러스터와 GPU 호스트 | 작성 | |
+| 3.3 | 이미지 · 레지스트리 · Helm | 작성 | |
+| 3.4 | 학습 Job | 작성 | |
+| 3.5 | 추론 워커 | 작성 | |
+| 3.6 | 작업 상태 DB | 작성 | |
+| 3.7 | CI/CD (Jenkins · Argo CD) | **완료**. 시험 Jenkins PASS 42/42, Argo CD PASS 23·FAIL 0, 코드 커밋 → 배포 연결 PASS 62·FAIL 0. 작업 폴더 스냅샷 시험 경로는 11/22에 막혔다가 고침 | `labs/jenkins-ci-20261122-1658.md`, `labs/argocd-20261122-1612.md`, `labs/cicd-e2e-20261122-2141.md` |
+| 3.8 | 모니터링 (Prometheus · Grafana) | **완료**. 시험 PASS 70·FAIL 0. 학습 Job이 돌 때의 패널 값과 보존 7일은 아직 못 봄 | `labs/monitoring-20261122-1654.md` |
+| 4 | 제안서와 달라진 점 | 작성 (11/22 반영) | |
+| 5 | 검증 실험 | **착수 (13주 몫 완료)**: 점검, F7, F8(CPU), F1(CPU, force)은 결과 작성. 나머지는 **[진행 중]** | `labs/fault-week13-summary-20261122.md` |
+| 6 | 결과 | 작성 (CI/CD·모니터링·첫 장애 실험 수치 반영). 나머지 검증 실험은 자리만 | |
+| 7 | 한계 | 작성 (11/22 반영, 검증 뒤 보완) | |
+| 8 | 결론 | 잠정 작성. 검증 뒤 확정 | |
+| 부록 | 일정 대비 실제, 근거 파일 | 작성 | |
 
 ## 1. 배경과 목표
 
@@ -72,13 +73,31 @@
 
 | 노드 | 형태 | OS | 자원 | 역할 라벨 | 맡은 일 |
 |---|---|---|---|---|---|
-| k3s-server | VM | Rocky Linux 9.8 Server (GUI 없음) | 2 vCPU / 3 GB | (없음) | K3s 제어 노드 |
-| worker-cpu-1 | VM | Rocky Linux 9.8 | 2 vCPU / 6 GB | `k3slab.io/role=platform` | 레지스트리, MySQL. Jenkins·Argo CD·모니터링 배치 예정 |
-| worker-cpu-2 | VM | Rocky Linux 9.8 | 2 vCPU / 3 GB | `k3slab.io/role=app` | API 대역 파드(echo-api), 노드 중단 실험 대상 |
-| gpu-host | 물리 데스크톱(호스트 OS) | Ubuntu 26.04.1 LTS | Ryzen 7 5700X 8C/16T, RTX 3090 24 GB, 호스트 전체 32 GB | `k3slab.io/role=gpu` + taint `nvidia.com/gpu=present:NoSchedule` | 학습·추론, 이미지 빌드(Kaniko) |
+| k3s-server | VM | Rocky Linux 9.8 Server (GUI 없음) | 2 vCPU / 3 GB | (없음) | K3s 제어 노드, node-exporter |
+| worker-cpu-1 | VM | Rocky Linux 9.8 | 2 vCPU / 6 GB | `k3slab.io/role=platform` | 레지스트리, MySQL, Jenkins 컨트롤러, Prometheus·Grafana·kube-state-metrics, node-exporter |
+| worker-cpu-2 | VM | Rocky Linux 9.8 | 2 vCPU / 3 GB | `k3slab.io/role=app` | Argo CD(파드 4개), Gitea(Git 서버), node-exporter, API 대역 파드(echo-api), 노드 중단 실험 대상 |
+| gpu-host | 물리 데스크톱(호스트 OS) | Ubuntu 26.04.1 LTS | Ryzen 7 5700X 8C/16T, RTX 3090 24 GB, 호스트 전체 32 GB | `k3slab.io/role=gpu` + taint `nvidia.com/gpu=present:NoSchedule` | 학습·추론, 이미지 빌드(Kaniko), Jenkins 에이전트 파드(한 번에 1개, GPU 요청 없음), dcgm-exporter, node-exporter |
 
 - VM 3대의 설정 합계는 6 vCPU / 12 GB다(`infra/terraform/variables.tf`). 네트워크는 VMware NAT `vmnet8` = 172.16.133.0/24이고, gpu-host의 노드 IP는 vmnet8 주소 172.16.133.1이다.
 - GPU는 VM에 넘기지 않고 물리 호스트에서 직접 쓴다. 호스트와 노드는 1대 1이다.
+- 구성도 그림(`assets/architecture.svg`)은 CI/CD·모니터링 구성요소를 아직 그리지 않았다. **그림 갱신 필요.**
+
+**배치와 메모리 예산 (배치 계획 B, 2026-11-22)**
+
+- 새로 올릴 Jenkins·Argo CD·모니터링을 어디에 둘지 `scripts/capacity-report.sh`(읽기 전용)로 잰 값으로 정했다. VM 크기는 늘리지 않았다.
+- 모니터링의 Prometheus·Grafana·kube-state-metrics를 Argo CD·Gitea와 함께 worker-cpu-2에 두면 그 노드의 메모리 limits 합계가 3,008 MiB로 안전 한도(약 1,860 MiB)의 162%라서 모니터링을 worker-cpu-1로 옮겼다. 안전 한도는 allocatable에서 운영체제 기준선과 여유 300 MiB를 뺀 값이다(계산은 계획 문서 4.3절).
+- worker-cpu-2는 여전히 빠듯하다. 계획 때 limits 합계를 1,728 MiB(안전 한도의 93%)로 잡았고, 배포한 값으로 다시 더하면 1,600 MiB(86%)다. 그래서 Argo CD·Gitea의 limits는 더 올리지 않는다.
+- VM 증설(worker-cpu-2를 4 GB로)은 필요해지면 쓸 대안으로만 남겼고 적용하지 않았다.
+
+| 노드 | 메모리 requests 합계 (계획) | 메모리 limits 합계 (계획) | 실제 사용 (`kubectl top`, 1회씩) |
+|---|---|---|---|
+| worker-cpu-1 | 2,016 MiB (allocatable 5,665 MiB의 36%) | 약 3,650 MiB (안전 한도 약 4,840 MiB의 75%) | 기동 직후 939 MiB(16%) → 모두 올린 뒤 2,098~2,196 MiB(37~38%). 계획 때 추정은 약 2.4 GiB |
+| worker-cpu-2 | 656 MiB (allocatable 2,712 MiB의 24%) | 1,728 MiB (안전 한도 약 1,860 MiB의 93%) | 998~1,111 MiB(36~40%). 계획 때 추정은 약 1.2 GiB |
+| k3s-server | 172 MiB (6%) | 234 MiB | 기동 직후 1,449 MiB(53%) → 1,903~1,982 MiB(70~73%) |
+| gpu-host | 최악 합계 5,472 MiB(약 5.3 GiB). 우리가 정한 요청 합계 한도 8 GiB의 67% | — | 파드별 값이 아니라 VM 3대를 포함한 PC 전체 13,720~21,525 MiB |
+
+- gpu-host는 노드의 allocatable(31,997 MiB)이 물리 PC 전체라서, VM이 잡은 메모리를 스케줄러가 모른다. 그래서 gpu-host 파드의 requests 합계를 8 GiB 안으로 직접 지킨다. Jenkins 에이전트를 동시에 1개만 띄우는 것도 이 한도 때문이다.
+- 근거: [`plan-week11-capacity.md`](plan-week11-capacity.md), [`labs/argocd-20261122-1612.md`](labs/argocd-20261122-1612.md) 5절, [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 5절, [`labs/monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) 8절.
 
 ### 2.2 버전
 
@@ -93,6 +112,9 @@
 | 레지스트리 / Kaniko | registry 3.1.2 / martizih/kaniko v1.28.6 | `scripts/lib/pinned-versions.env` |
 | 학습 베이스 이미지 | pytorch 2.14.1 + CUDA 13.0 + cuDNN 9 (runtime) | `apps/train/Dockerfile` |
 | MySQL | 8.4.13 | `infra/k8s/mysql.yaml` |
+| Jenkins | 차트 5.13.3 / 컨트롤러 2.580.2-jdk25 / 플러그인 73개 고정 | `infra/k8s/jenkins/values.yaml` |
+| Argo CD / Gitea | v3.6.2(공식 `install.yaml`) / 28.3.0-rootless | `infra/k8s/argocd/` |
+| Prometheus / Grafana / kube-state-metrics / node-exporter / dcgm-exporter | v3.16.0 / 13.3.1 / v2.20.0 / v1.13.1 / 4.6.1-4.8.4 | `infra/k8s/monitoring/` |
 
 ### 2.3 작업이 흐르는 길
 
@@ -101,10 +123,30 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
         ▲                       ▲                                                        │
         └── status / result ────┴────────── 상태·체크포인트 기록 ◀──────────────────────┘
 
-이미지: scripts/image-build.sh (Kaniko, 클러스터 안) ──▶ registry.k3slab.local:5000 (worker-cpu-1) ──▶ 각 노드가 pull
+이미지(손으로): scripts/image-build.sh (Kaniko, 클러스터 안) ──▶ registry.k3slab.local:5000 (worker-cpu-1) ──▶ 각 노드가 pull
 ```
 
-[진행 중] 3.7이 끝나면 위 흐름의 앞쪽(Git push → Jenkins → 레지스트리 → Argo CD)을 그림으로 추가한다.
+코드를 고치면 사람이 명령을 치지 않아도 추론 서비스가 새 이미지로 바뀌는 길은 아래와 같다(11/22에 클러스터에서 확인, 3.7).
+
+```text
+코드 커밋 ──▶ Gitea main (클러스터 안 Git 서버, 저장소 k3slab/k3s-vmware-lab)
+                 │  Jenkins가 1분마다 폴링 (웹훅 없음)
+                 ▼
+   Jenkins 컨트롤러 (worker-cpu-1, 네임스페이스 ci)
+                 ▼
+   검사 파드 (gpu-host): C++ → Python → 쉘 → Helm      ← 하나라도 실패하면 여기서 끝 (이미지·배포 없음)
+                 ▼
+   빌드 파드 (gpu-host, 이미지마다 1개): Kaniko ──▶ registry.k3slab.local:5000/<이름>:git-<커밋 7자리>
+                 ▼
+   배포 값 단계: charts/k3slab-workload/values-infer-argocd.yaml 의 image.tag 한 줄을 새 태그로 커밋 (작성자 k3slab ci, 제목에 [skip ci])
+                 ▼
+   Gitea main ──(Argo CD가 30초마다 확인)──▶ 자동 sync ──▶ 추론 Deployment의 새 파드 (gpu-host, 네임스페이스 k3slab-apps)
+
+모니터링: node-exporter · kube-state-metrics · cAdvisor · dcgm-exporter · 추론 워커 /metrics ──▶ Prometheus ──▶ Grafana ◀── MySQL jobs·job_events (읽기 전용 계정)
+```
+
+- Argo CD는 추론 서비스(Deployment·Service)만 관리한다. 학습 Job은 위쪽의 `job.sh` 흐름이 맡는다(이유는 4절).
+- 이 그림은 글로 그린 것이다. SVG 구성도에 같은 경로를 넣는 일은 **그림 갱신 필요**다.
 
 ## 3. 구현
 
@@ -246,50 +288,192 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 
 ### 3.7 CI/CD (Jenkins · Argo CD)
 
-**[진행 중]** 제안서 일정: Jenkins 10–12주, Argo CD 11–13주. 제안서 12번의 흐름은 `Git push → Jenkins(빌드·테스트·이미지 생성·태그) → 레지스트리 push → 배포 설정의 태그 수정 → Argo CD 동기화 → K3s 반영`이다.
+제안서 일정은 Jenkins 10–12주, Argo CD 11–13주이고, 둘 다 11/22에 클러스터에서 확인했다(일정보다 앞당김). 제안서 12번의 흐름 `Git push → Jenkins(빌드·테스트·이미지 생성·태그) → 레지스트리 push → 배포 설정의 태그 수정 → Argo CD 동기화 → K3s 반영`을 구현했다. 코드와 배포 설정의 출처는 클러스터 안 Git 서버(Gitea)다(4절). 전체 흐름은 2.3절에 있다.
 
-채울 것 (Jenkins)
+**Jenkins**
 
-- [ ] 설치 위치와 방식: 네임스페이스, 노드, CPU·메모리 requests/limits, PVC 크기, 이미지·차트 버전
-- [ ] 파이프라인 정의 파일 경로와 단계. 계획은 C++ 빌드(`make CUDA=0`)와 Python 문법·단위 검사 → 통과했을 때만 이미지 생성(지금과 같은 Kaniko 방식) → 태그 부여 → 레지스트리 push다(`docs/progress-week09.md` 다음 주 계획). 실제 구현으로 바꿔 쓴다
-- [ ] 검사가 실패하면 이미지가 만들어지지 않는다는 증거(실패한 실행 1건)
-- [ ] 태그 규칙과 불변 확인(이미 있는 태그는 빌드하지 않음)
-- [ ] 빌드 시간(코드 push부터 이미지 push까지), 실행 중 자원 사용량
-- [ ] 자격 증명(Git, 레지스트리) 처리 방법. 비밀값은 Git에 없음
-- [ ] 근거 파일: `docs/labs/` 아래 실행 기록 (경로 추후)
+| 항목 | 내용 |
+|---|---|
+| 설치 | 네임스페이스 `ci`. 공식 Helm 차트 `jenkins` 5.13.3(내려받은 파일의 SHA-256 확인), 값 파일 `infra/k8s/jenkins/values.yaml`. 컨트롤러 `jenkins/jenkins:2.580.2-jdk25`, 에이전트 `jenkins/inbound-agent:3395.v6e5377b_0fb_3c-5-jdk25`. 플러그인 73개를 전부 정확한 버전으로 고정 |
+| 컨트롤러 | worker-cpu-1, StatefulSet `jenkins-0`. 요청 CPU 250m·메모리 768Mi, 한도 CPU 1·메모리 1Gi, JVM 힙 256~512 MB, PVC `jenkins` 5Gi(local-path). 빌드는 컨트롤러에서 돌리지 않는다(`numExecutors: 0`) |
+| 에이전트 파드 | gpu-host에서 한 번에 하나만 뜨고 빌드가 끝나면 사라진다. GPU는 요청하지 않는다. 검사 파드(jnlp/gcc/torch): 요청 CPU 1,050m·메모리 1,152Mi. 빌드 파드(jnlp/kaniko/tools, 이미지마다 새 파드): 요청 CPU 1,100m·메모리 2,240Mi, Kaniko 메모리 한도 8Gi |
+| 파이프라인 정의 | 저장소 최상위 [`Jenkinsfile`](../Jenkinsfile). 단계별 명령은 `scripts/jenkins-stage-*.sh`, 단위 시험은 `tests/` |
+| 도구 | ShellCheck 0.11.0, Helm 4.3.1, Kaniko v1.28.6(`scripts/image-build.sh`와 같은 버전), `gcc:15.3.0-trixie`, `pytorch/pytorch:2.14.1-cuda13.0-cudnn9-runtime` |
 
-채울 것 (Argo CD)
+파이프라인 단계:
 
-- [ ] 설치 위치와 방식, 자원 requests/limits, 버전
-- [ ] 배포 설정(YAML)을 두는 Git 저장소 디렉터리(제안서: 별도 디렉터리)와 Argo CD 앱 정의
-- [ ] "태그만 수정하면 반영" 시험: 태그 수정부터 K3s 반영까지 걸린 시간, 사람이 배포 명령을 치지 않았다는 증거
-- [ ] 배포 설정과 클러스터 실제 상태가 다를 때 맞추는 동작 시험
-- [ ] 잘못된 배포 시나리오(5.2의 2번)와 복구 방법
-- [ ] 근거 파일 (경로 추후)
+| 단계 | 하는 일 | 실패하면 |
+|---|---|---|
+| 소스 | Gitea main을 체크아웃하고 이미지 태그를 정한다. 봇이 만든 커밋이면 건너뛴다(아래 "고리 막기") | 뒤 단계 전부 건너뜀 |
+| C++ | `apps/infer`를 `make CUDA=0`으로 빌드하고, 워커를 띄워 `/healthz`, `/infer`, 잘못된 입력(400), `/metrics`, SIGTERM 종료, 모델 없음 거부를 확인한다. `/metrics` 단위 시험(`tests/infer/`)도 돌린다 | 〃 |
+| Python | `py_compile`, Dockerfile이 모든 모듈을 COPY하는지, `requirements.txt` 해시 고정, 단위 시험 37개(`tests/train/`) | 〃 |
+| 쉘 | 모든 `*.sh`를 `bash -n`, ShellCheck(warning 이상이면 실패) | 〃 |
+| Helm | `helm lint`와 `helm template`(학습 → Job, 추론 → Deployment + Service, 필수 값 누락 거부) | 이미지 단계 건너뜀 |
+| 이미지 | 이미지마다 레지스트리에 태그가 있으면 다시 빌드하지 않고 그 digest를 쓴다. 없으면 Kaniko로 빌드해 push하고 레지스트리에 digest를 다시 물어 같은지 확인한다 | 빌드 실패 |
+| 결과 기록 | 빌드 산출물 `ci-result.json`과 ConfigMap `ci-latest`에 태그·커밋·digest를 남긴다 | 빌드 실패 |
+| 배포 값 | `values-infer-argocd.yaml`의 `image.tag`를 새 태그로 바꿔 Gitea main에 커밋·push한다(`src-` 태그는 거부) | 빌드 실패(이미지는 이미 push됨, 태그 커밋만 없음) |
 
-채울 것 (전체)
+- **태그 규칙**: `git-<커밋 7자리>`. 같은 커밋은 같은 태그라서 다시 돌려도 덮어쓰지 않는다(이미 있으면 건너뛰고 같은 digest를 기록한다). 작업 폴더 스냅샷으로 만든 시험용은 `src-<해시 12자리>`이고 배포에 쓰지 않는다.
+- **자격 증명**:
+  - 관리자 비밀번호는 무작위로 만들어 클러스터 Secret `ci/jenkins-admin`과 `~/.config/k3s-vmware-lab/secrets/jenkins.env`(권한 600)에만 둔다. 익명은 읽기도 안 된다(HTTP 403). 비밀번호가 저장소 파일 어디에도 없는 것을 시험으로 확인했다.
+  - Jenkins가 Git에 쓰는 계정은 제한된 Gitea 계정 `k3slab-ci`(관리자 아님, 이 저장소의 write 협력자, 토큰 범위 `write:repository` 하나)다. 토큰은 Secret `ci/gitea-ci`와 `~/.config/k3s-vmware-lab/secrets/gitea-ci.env`(권한 600)에만 있다. 에이전트 파드의 권한은 ConfigMap 읽기·쓰기뿐이고 클러스터에는 GitHub 자격증명이 없다.
+  - Gitea에 올린 파일 146개의 목록에 `*.env`, kubeconfig, secrets, 키·인증서 파일이 없는 것을 확인했다.
 
-- [ ] 2.3의 흐름 그림에 Git → Jenkins → 레지스트리 → Argo CD 경로 추가
-- [ ] Jenkins·Argo CD가 worker-cpu-1(6 GB)에 더해지는 메모리 영향(한계 7절과 연결)
+시험 결과 (`scripts/jenkins-ci-test.sh`, **PASS 42/42**, 2026-11-22 16:58, [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md), 모두 1회):
+
+| 시험 | 결과 |
+|---|---|
+| 배포 상태 | 컨트롤러 Ready, worker-cpu-1에서 실행, 이미지 고정 태그, 자원이 승인안과 같음, PVC 5Gi Bound, 로그인 화면 HTTP 200, 익명 API HTTP 403, 플러그인 73개가 모두 그 버전으로 로드 |
+| 파이프라인 성공 | 검사 4단계 PASS, `infer-worker`·`train-worker` 이미지 생성, 레지스트리 digest = 결과 기록 = ConfigMap. 에이전트 파드가 gpu-host에 배정되고 빌드 뒤 사라짐. 시험 스크립트 로그 기준 약 3분 50초 |
+| 같은 소스 재실행 | 같은 태그라서 두 이미지를 다시 빌드하지 않고 digest가 처음과 같음 |
+| **검사 실패: Python 문법 오류** | FAILURE. `[python] FAIL: py_compile found a syntax error`. 쉘·Helm·이미지 단계가 건너뛰어졌고 레지스트리에 새 태그가 생기지 않음 |
+| **검사 실패: 단위 시험 실패** | FAILURE. `[python] FAIL: unit tests failed`. 이미지 단계 건너뜀, 레지스트리에 새 태그 없음 |
+
+- 11/21에는 클러스터 없이 같은 파이프라인을 이 컴퓨터의 Jenkins 2.580.2에서 시험했다(에이전트 파드와 Kaniko는 대역). 성공 1회, 같은 소스 재실행, 실패 6종(C++ 컴파일 오류, Python 문법 오류, 단위 시험 실패, 쉘 문법 오류, ShellCheck 경고, 차트 오류)이 모두 의도대로 이미지 단계를 건너뛰었다([`labs/jenkins-offline-20261121-1300.md`](labs/jenkins-offline-20261121-1300.md)).
+- 클러스터에서 처음 돌릴 때 실패한 것과 고친 것은 보고서 10절에 모았다(시행 7회 중 6회가 실패). 플러그인 의존 버전 불일치, 플러그인 받는 init 컨테이너의 메모리 부족, AppArmor, Kaniko의 두 번째 이미지 실패가 주요 원인이었다. 중간 보고서는 지우지 않고 남겼다.
+- 위 시험은 작업 폴더 스냅샷 경로로 돌렸다. 이 경로(`scripts/jenkins-run.sh`)는 연결 작업 중에 스냅샷이 커져 막혔다가(`kubectl apply`의 annotation 한도 256KB) 같은 날 고쳤다. 고친 뒤 검사만 하는 빌드가 1회 SUCCESS였다([`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 14절). 아래 연결 시험은 Gitea 경로를 쓰므로 영향이 없다.
+
+시간과 자원 (모두 1회씩 잰 값):
+
+| 항목 | 값 | 근거 |
+|---|---|---|
+| 컨트롤러 첫 시작 (플러그인 73개 내려받기) | 약 10분 (계획한 3~6분보다 김) | 보고서 6절 |
+| 빌드 한 번 (Gitea 경로, 성공) | 212~233초. 봇 커밋 때문에 건너뛴 빌드는 7~9초, 일부러 실패시킨 빌드는 21초 | [`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 13절 |
+| 메모리 최대 (15초 간격 표본) | 컨트롤러 606 MiB, 검사 파드 658 MiB, 빌드 파드 363 MiB | 보고서 5·6절 |
+| worker-cpu-1 사용 메모리 | 배포 전 979 MiB(17%) → 시험 중 최대 2,196 MiB. 같은 시간에 모니터링도 올라와서 Jenkins만의 증가분이 아니다(컨트롤러 자체는 571~606 MiB) | 보고서 5절 |
+| 레지스트리 | 시험 뒤 `du` 3.1 GB, 노드 디스크 여유 25.9 GB | 보고서 7절 |
+
+**Argo CD**
+
+| 항목 | 내용 |
+|---|---|
+| 설치 | 네임스페이스 `argocd`, worker-cpu-2. Helm 차트가 아니라 공식 `install.yaml` v3.6.2(내려받은 파일의 SHA-256을 매번 확인)에 kustomize 패치를 얹었다. dex·notifications·ApplicationSet 컨트롤러는 뺐다(설치 객체 60개 → 39개, 파드 7개 → 4개). 이미지 `argocd:v3.6.2`, `redis:8.10.1-alpine` |
+| 자원 | 파드 4개 합계 요청 CPU 225m·메모리 448Mi, 메모리 한도 1,280Mi(controller 512 + repo-server 384 + server 256 + redis 128). 내부 Git 서버 Gitea 28.3.0-rootless(네임스페이스 `k3slab-system`, PVC 1Gi)는 요청 50m / 96Mi, 한도 256Mi |
+| 배포 설정 위치 | Gitea 저장소 `k3slab/k3s-vmware-lab`의 `charts/k3slab-workload`. Argo CD가 읽는 값 파일은 `values-infer.yaml` + `values-infer-argocd.yaml`(뒤 파일이 이김). 이미지 태그는 뒤 파일의 `image.tag` 한 줄이다 |
+| Application | AppProject `k3slab`(Deployment·Service만 허용)과 Application `infer`(`infra/k8s/argocd/application-infer.yaml`). 대상 네임스페이스 `k3slab-apps`. 자동 동기화(prune, self-heal), 확인 주기 30초(웹훅 없음) |
+
+시험 결과 (`scripts/argocd-test.sh`, **PASS 23, FAIL 0**, 2026-11-22 16:12, [`labs/argocd-20261122-1612.md`](labs/argocd-20261122-1612.md), 모두 1회):
+
+| 시험 | 결과 |
+|---|---|
+| 처음 sync | Application 생성 21초 만에 Synced + Healthy. 추론 파드가 gpu-host에서 `/healthz`·`/infer`에 응답(`device: cuda`) |
+| 자가 치유 (손으로 바꾼 값을 되돌림) | `replicas` 1→2는 2초 만에 1로, 지운 Service는 1초 만에 다시 만들어졌다. 원래 파드는 재시작 없음. 되돌린 것은 Argo CD의 자동 동기화(`initiatedBy.automated`)였다 |
+| 새 리비전 (값 커밋 → 반영) | `maxBatch` 8→4를 Git에 커밋하자 55초 만에 새 파드(`MAX_BATCH=4`)가 떴고 배포 이력에 두 리비전이 남았다 |
+| rollback | `argocd app rollback`으로 22초 만에 이전 값(`MAX_BATCH=8`)의 새 파드가 떴다. Git은 그대로라 OutOfSync로 표시됐다. 이어서 Git revert 커밋으로 Git과 다시 맞췄다 |
+| 정리 | Application을 지우자 추론 파드가 0개가 되고 GPU가 반환됨 |
+
+- `argocd app rollback`은 자동 동기화가 켜져 있으면 거부된다. 시험은 자동 동기화를 잠시 끄고 롤백한 뒤 Git revert로 맞추고 다시 켰다. 운영에서는 Git revert 한 번이 롤백이다(이력이 Git에 남는다).
+- 위 21초와 55초에는 클러스터 DNS의 `localdomain` 지연(7절)이 들어 있을 수 있다. DNS를 고친 뒤 다시 쟀다: 처음 sync는 3.9초(깨끗한 비교, 1회). 새 리비전은 성공 경로 25.7초, 되돌림 경로 9.5초지만 Argo CD의 30초 확인 주기가 섞여 있어서 방향(빨라졌다)만 말할 수 있다([`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 10절).
+- 메모리(1회, 최대값 아님): Argo CD 4개 파드 합계 226 MiB(limits 합계 1,280 MiB 안), Gitea 109 MiB(limit 256 MiB).
+- 학습 Job(`kind: train`)은 Argo CD 대상에서 뺐다. 이유는 4절에 있다.
+- 한계: 확인 주기가 폴링 30초라서 커밋이 반영되기까지 최대 약 1분 걸린다. Gitea 데이터는 worker-cpu-2 디스크(local-path)에 있어서 VM을 다시 만들면 저장소 이력이 사라진다. 관리자 계정을 그대로 쓰고 클러스터 밖으로는 열지 않는다(port-forward만). 근거: [`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md) 9절.
+
+**코드 커밋 → Jenkins → 태그 커밋 → Argo CD (연결, 11주차)**
+
+코드를 Gitea에 커밋하면 사람이 명령을 치지 않아도 새 파드가 뜬다. 제안서 12–13주 몫을 앞당겨 11/22에 `scripts/cicd-e2e-test.sh`로 확인했다(**PASS 62, FAIL 0**, [`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md), 각 경로 1회).
+
+성공 경로: 지연 히스토그램을 추가한 커밋 `ab7b937`을 올렸다. 빌드 #7이 "Started by an SCM change"로 시작됐고, 이미지 `git-ab7b937`을 만들었고, 봇이 태그 커밋 `d0dc84e`를 올렸고, Argo CD가 자동 동기화로 배포했다. 새 파드가 실제로 도는 digest가 CI가 기록한 digest와 같았다. 이전 태그 `git-1cd3df2`의 digest는 그대로였다(태그를 덮어쓰지 않음).
+
+| 단계 | 커밋부터 (초) | 직전 단계부터 (초) |
+|---|---|---|
+| 커밋 | 0.0 | – |
+| Jenkins가 변경을 찾아 빌드 예약 (1분 폴링) | 63.6 | 63.6 |
+| 검사 끝 (소스·C++·Python·쉘·Helm) | 109.0 | 45.3 |
+| 이미지 push 끝 (Kaniko 두 이미지, digest 확인, 결과 기록) | 278.8 | 169.8 |
+| 태그 커밋 push | 291.5 | 12.7 |
+| Argo CD sync 끝 | 310.3 | 18.7 |
+| 새 파드 Ready | 317.3 | 7.0 |
+| 새 digest 확인 | **320.1** | 2.9 |
+
+- 폴링 지연(63.6초)은 0~60초 사이에 흩어지는 값이고 폴링 간격 60초에 빌드 예약까지의 몇 초가 더해졌다. 세 경로의 값은 63.6, 4.6, 19.5초다.
+- 이 경로의 새 파드는 노드에 이미지가 없어서 처음 받는 시간(101 ms)이 들어 있다.
+
+**검사가 실패하는 커밋은 배포되지 않는다.** 경계값을 한 칸 어긋나게 한 커밋 `9542768`은 빌드와 실행 검사는 통과하고 단위 시험만 잡는 변경이었다. 빌드 #9가 C++ 단계의 단위 시험에서 FAILURE로 끝났다(커밋부터 25.9초).
+
+- 나머지 검사 단계, 이미지 단계, 배포 값 단계가 건너뛰어졌다. 레지스트리에 새 태그가 생기지 않았고 태그 커밋이 없었다.
+- 기존 파드는 같은 uid·재시작 0·같은 digest였고 Argo CD 배포 이력도 그대로였다.
+- 이 커밋을 revert한 `760a534`는 같은 파이프라인을 통과해 커밋부터 243.0초에 새 태그 `git-760a534`로 배포됐다.
+
+**고리 막기.** 봇의 태그 커밋도 Gitea main을 움직여서 폴링이 빌드를 하나 만든다. 소스 단계가 HEAD 커밋의 작성자가 `k3slab ci`이거나, 메시지에 `[skip ci]`가 있거나, 바뀐 파일이 `values-infer-argocd.yaml` 하나뿐이면 건너뛴다(`NOT_BUILT`, 7~9초). 태그 커밋마다 건너뛴 빌드가 하나씩 생겼고(#4, #6, #8, #11), 그 뒤 75초 동안 다른 빌드는 생기지 않았다.
+
+**p50 / p95.** 이 시험이 모니터링의 알려진 한계 "지연 p50/p95 없음"을 풀었다. 새 파드가 지연 히스토그램을 내보내고 대시보드 패널이 처음으로 값을 낸다(캡처는 3.8절). 요청 132000개 중 131962개(99.971%)가 첫 버킷(≤ 0.5 ms)에 들어서 p50 ≈ 0.25 ms, p95 ≈ 0.475 ms는 그 버킷 안의 보간 값이다. "99.97%가 0.5 ms 이하"로 읽어야 하고 평균 38.2 µs가 실제 크기를 더 잘 말해 준다(같은 보고서 9절).
+
+**한계와 남은 것**
+
+- 작업 폴더 스냅샷 시험 경로(`scripts/jenkins-run.sh`)는 고쳤고 바뀐 `Jenkinsfile`이 그 경로에서 검사 4단계를 통과했다(이미지 없이 1회). `--source-dir`에 최상위 폴더(`infra` 등)가 없으면 메시지 없이 멈추는 문제는 남아 있다.
+- 폴링 지연 0~60초와 Argo CD의 30초 확인 주기가 더해진다. 줄이려면 웹훅이 필요한데 Gitea 설정 변경이 따른다(4절).
+- 봇 커밋마다 건너뛴 빌드가 하나 생긴다. Jenkins 빌드 목록의 절반 가까이가 `NOT_BUILT`다.
+- 첫 버킷(≤ 0.5 ms)이 작은 모델에는 너무 굵어서 작은 모델의 p50/p95는 해상도가 없다.
+- 값 파일 `values-infer-argocd.yaml`은 이제 CI가 쓰는 파일이다. 사람이 `scripts/argocd-source.sh push`로 `charts/` 전체를 올리면 CI가 넣은 태그가 옛 값으로 돌아간다. CI를 켠 뒤에는 `tree … --keep <값 파일>`을 쓴다.
+- 사람이 값 파일만 고친 커밋 바로 아래의 코드 커밋은 빌드되지 않을 수 있다(HEAD만 본다). 그때는 `FORCE_BUILD=true`로 시작한다.
+- Kaniko는 빌드마다 베이스 이미지(CUDA devel, PyTorch 각 약 3.3GB 압축)를 새로 받는다(캐시 없음). 노드에 이미지가 없으면 이미지 하나에 10분 이상 걸릴 수 있다.
+- 폴링이 클러스터에서 처음 돌 때 폴링 제외 확장과 와일드카드 브랜치가 에이전트 파드와 맞지 않았다. 같은 규칙을 `Jenkinsfile` 소스 단계 안으로 옮겼고, 작업에 이미 빌드가 있었다면 `scripts/jenkins-run.sh --git`으로 한 번 직접 시작해야 폴링이 돈다(보고서 13절).
+- 잘못된 배포 시나리오와 복구는 5.2절 2번에 있다. Jenkins·Argo CD·모니터링이 worker-cpu-1·2에 준 메모리 영향은 2.1절과 7절에 있다.
+- 근거: [`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md), [`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md).
 
 ### 3.8 모니터링 (Prometheus · Grafana)
 
-**[진행 중]** 제안서 일정: 12–14주. 제안서 13번의 관측 대상 네 가지를 대시보드 한 장에 모은다. 현재 준비된 것은 추론 워커의 `/metrics`뿐이다.
+제안서 일정은 12–14주이고 11/22에 앞당겨 클러스터에 배포해 시험했다. 제안서 13번의 관측 대상 네 가지를 모두 수집하고 대시보드 3장으로 본다. 13–16주 검증 실험은 이 값을 측정 근거로 쓴다.
 
-| 관측 대상 | 제안서의 지표 | 지금 준비된 것 | 채울 것 |
+| 구성요소 | 이미지 (고정 버전) | 위치 | 요청 (CPU / 메모리) | 메모리 한도 |
+|---|---|---|---|---|
+| Prometheus | `quay.io/prometheus/prometheus:v3.16.0` | worker-cpu-1 | 100m / 384Mi | 768Mi |
+| Grafana | `docker.io/grafana/grafana:13.3.1` | worker-cpu-1 | 50m / 192Mi | 512Mi |
+| kube-state-metrics | `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0` | worker-cpu-1 | 20m / 64Mi | 128Mi |
+| node-exporter | `quay.io/prometheus/node-exporter:v1.13.1` | 노드마다 1개(4개) | 10m / 32Mi | 64Mi |
+| dcgm-exporter | `nvcr.io/nvidia/k8s/dcgm-exporter:4.6.1-4.8.4` | gpu-host | 25m / 128Mi | 768Mi |
+
+- 네임스페이스 `monitoring`. 직접 쓴 매니페스트(kustomize)이고 Helm·Operator·CRD는 쓰지 않았다(이유는 4절). 올리기·내리기는 `scripts/monitoring-deploy.sh`, 확인은 `scripts/monitoring-test.sh`다.
+- 저장소: PVC `prometheus-data` 3Gi(local-path, worker-cpu-1), 보존 7일·상한 2GB. Grafana는 PVC가 없고 화면은 Git의 JSON에서 다시 만들어진다. CPU limit은 두지 않는다.
+- dcgm-exporter는 `nvidia.com/gpu`를 요청하지 않는다. device plugin이 GPU를 세지 않으므로 GPU 1장은 학습·추론이 그대로 쓴다. 시험 내내 gpu-host의 GPU 할당은 0이었다.
+
+| 관측 대상 | 제안서의 지표 | 수집 방법 | 대시보드 패널 |
 |---|---|---|---|
-| 노드·파드 | CPU·메모리 사용률, 파드 재시작 횟수 | 없음 | 수집 방법, 패널 |
-| GPU | GPU 사용률, VRAM 사용량(24 GB 기준) | 없음 | 수집 방법, 패널 |
-| 추론 요청 | 초당 요청 수, 성공·실패 수, 큐 길이, 처리 시간 | 워커가 `/metrics`로 노출 중: `k3slab_infer_queue_length`, `k3slab_infer_queue_capacity`, `k3slab_infer_requests_total{result=ok\|rejected\|timeout\|bad_request\|failed}`, `k3slab_infer_batch_size`, `k3slab_infer_batch_compute_seconds`, `k3slab_infer_request_seconds`, `k3slab_infer_info{device,gpu,model_version}` | 수집 설정, 패널 |
-| 작업 상태 | 대기·실행·완료·실패 작업 수 | MySQL `jobs` 테이블의 `status` | 수집 방법, 패널 |
+| 노드·파드 | CPU·메모리 사용률, 파드 재시작 횟수 | node-exporter, cAdvisor(kubelet을 API 서버 프록시로 읽음), kube-state-metrics. 모두 15초 간격. 재시작은 `kube_pod_container_status_restarts_total` | 노드 대시보드: 노드별 CPU 사용률, 메모리 사용률·사용량, 디스크, load1, 노드별 파드 수, 수집 대상 up. 학습 대시보드: 학습 파드 재시작. 노드·추론 파드의 재시작 패널은 없고 F1 보고서가 Prometheus 쿼리로 읽었다 |
+| GPU | GPU 사용률, VRAM 사용량(24 GB 기준) | dcgm-exporter. 사용률·메모리 사용/여유·전력·온도 5종. Prometheus가 5초마다 읽고 exporter는 1초마다 갱신 | 추론 대시보드: GPU 사용률·메모리(요약 게이지와 시계열), 전력·온도 |
+| 추론 요청 | 초당 요청 수, 성공·실패 수, 큐 길이, 처리 시간 | 워커 `/metrics`를 5초마다 읽는다. 파드 라벨 `k3slab.io/kind=infer`로 자동 발견한다(차트는 고치지 않았다) | 추론 대시보드(패널 20개): 초당 요청(결과별), 큐 길이와 용량, 429·504 비율, 배치 크기, 배치 계산 시간, 평균 지연, 지연 p50/p95 |
+| 작업 상태 | 대기·실행·완료·실패 작업 수 | Grafana의 MySQL 데이터소스. `jobs`·`job_events` 두 테이블에 SELECT만 되는 읽기 전용 계정 `k3slab_ro`(시험으로 INSERT·UPDATE·DELETE·DROP과 `mysql.user` 조회가 거부되는 것을 확인) | 학습 대시보드(패널 13개): 작업 상태별 개수, 종류×상태, 진행률, 작업 목록, 진행 에폭, 상태 변화 이력 |
 
-채울 것
+대시보드는 3장, 패널 49개다(추론 워커 20, 학습 작업 13, 노드 16). Grafana가 시작할 때 폴더 `k3s-vmware-lab`에 자동으로 넣고, 화면에서 고쳐도 저장되지 않는다(Git의 JSON `infra/k8s/monitoring/dashboards/*.json`이 기준).
 
-- [ ] 설치 위치와 방식, 자원 requests/limits, 저장 기간·PVC, 버전
-- [ ] 수집 대상 목록(`ServiceMonitor` 또는 scrape 설정)과 수집 주기
-- [ ] 대시보드 한 장의 캡처와 패널 목록, 대시보드 정의 파일 경로
-- [ ] 5절의 시나리오마다 해당 상황이 대시보드에 나타난 화면(재시작 횟수, 큐 길이·거절 수, 작업 상태 수 변화)
-- [ ] 모니터링이 쓰는 자원이 클러스터에 준 영향(메모리)
+시험 결과 (`scripts/monitoring-test.sh --with-gpu`, **PASS 70, FAIL 0**, 2026-11-22 16:54, [`labs/monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md), 1회):
+
+| 시험 | 결과 |
+|---|---|
+| 배포 | 파드 8개 모두 Running·Ready, 재시작 0, OOMKilled 없음. gpu-host의 node-exporter는 ufw를 바꾸지 않고 호스트 네트워크 없이 파드 IP로 읽는다(호스트 네트워크 카드 지표는 빠진다) |
+| 수집 대상 | 11개 모두 up (prometheus 1, kube-state-metrics 1, node-exporter 4, cadvisor 4, dcgm-exporter 1). 노드마다 `/` 디스크 지표가 들어옴 |
+| Grafana | 데이터소스 둘(Prometheus, MySQL) 정상. 대시보드 3개가 손으로 만든 것 없이 자동으로 등록됨. 대시보드 쿼리 61개를 Grafana를 거쳐 실행해 오류 0 |
+| 보통 부하 (GPU 워커, 60초) | 요청 346000개, 초당 5766.7. Prometheus 카운터 증가량이 클라이언트가 센 200 응답 수와 같음. 평균 배치 크기 2.71. GPU 사용률 평균 46.93%(최대 81%) > 쉬는 구간 최댓값 2.00%. GPU 전력 평균 252.52 W > 쉬는 구간 최댓값 133.53 W. GPU 메모리는 모델을 올리자 885 → 1,219 MiB |
+| 과부하 (큐 20, CPU 워커, 30초) | 요청 32000개 중 429가 29562개(92.4%), 200이 2438개. Prometheus의 429 증가량이 클라이언트가 센 429 응답 수와 같음. 큐 길이 최대 20/20. 부하 설정은 `--parallel-max 300`이고 추론 파드가 실제로 받은 최대 연결은 229개(Prometheus 수집 연결 1개 포함) |
+
+- 과부하 단계는 `--with-gpu`여도 CPU 워커로 돌렸다. GPU 워커는 배치 하나를 0.43~0.48 ms에 끝내서 이 부하 도구로는 큐 20을 채우지 못했기 때문이다("GPU가 느려서"가 아니라 "너무 빨라서 포화되지 않는다").
+- **메모리**: monitoring 네임스페이스 실사용 합계 **944 MiB**(Grafana 343, dcgm-exporter 446, Prometheus 87, kube-state-metrics 19, node-exporter 4개 합 46). 모두 limit 안이다. Prometheus는 시계열 9,336개, 블록+WAL 5.8 MiB였다(1회). worker-cpu-1에 준 영향은 2.1절에 있다.
+- 시행은 6번 했다(PASS/FAIL 60/4 → 64/0 → 68/2 → 69/1 → 65/0 → 70/0). 앞의 FAIL은 Grafana가 Prometheus에 못 붙은 DNS 지연(7절), 과부하에서 429·큐 길이가 안 잡힌 부하 조건이었다. 고치기 전 보고서도 지우지 않고 남겼다. 발견한 것은 보고서 9.3절에 있다.
+
+대시보드 화면 (실제 클러스터 값):
+
+<p align="center">
+  <img src="labs/monitoring-20261122-dashboard-infer.png" alt="추론 워커 대시보드: 보통 부하와 과부하 구간 (2026-11-22 16:42~17:00)" width="60%">
+</p>
+
+- 위는 모니터링 시험 직후의 추론 워커 대시보드다. 초당 요청이 두 번 솟은 것이 보통 부하이고, 429 비율이 세 번 솟은 것이 과부하 구간이다. GPU 사용률·전력도 보통 부하 때 솟았다. 지연 p50/p95 패널은 이때 "No data"였다. 맨 위 숫자 카드는 촬영 시점 값이라 시험 파드가 이미 지워져 0이다.
+- 아래는 코드 커밋 → 배포 시험(3.7절) 때의 같은 대시보드다. 지연 p50/p95 패널이 처음으로 값을 낸다(21:53 부하 30초 구간). 워커 파드 CPU/메모리 패널에는 파드가 바뀐 시각이 보인다.
+
+<p align="center">
+  <img src="labs/cicd-e2e-20261122-dashboard-infer.png" alt="추론 워커 대시보드: 지연 p50/p95 (2026-11-22 21:46~22:03)" width="60%">
+</p>
+
+- 노드 대시보드와 학습 대시보드 캡처는 [`labs/monitoring-20261122-dashboard-nodes.png`](labs/monitoring-20261122-dashboard-nodes.png), [`labs/monitoring-20261122-dashboard-training.png`](labs/monitoring-20261122-dashboard-training.png)에 있다. 학습 대시보드는 MySQL의 작업 11건(DONE 8, FAILED 3)과 11/7의 상태 변화 이력만 보인다.
+- 장애 실험(5절)의 시나리오별 Grafana 화면은 아직 저장하지 않았다. 5.2절의 첫 실험 세 건은 Prometheus 쿼리 결과를 보고서에 붙였다.
+
+한계와 못 본 것
+
+- 학습 Job이 돌 때의 학습 대시보드 패널(진행률·진행 에폭·학습 파드 CPU/메모리)은 값을 보지 못했다. 이 시험 동안 학습 Job을 돌리지 않았고 쿼리가 오류 없이 실행되는 것까지만 확인했다. GPU 학습 중의 DCGM 값, 보존 7일이 오래된 블록을 지우는 것도 확인하지 못했다.
+- 큐 길이는 5초 간격으로 읽는 순간값이라 몇 초짜리 포화를 놓친다. 장애 실험 F7에서도 0.2초 샘플은 20/20을 잡았는데 Prometheus 최댓값은 16이었다. 그래서 큐 길이는 429 비율과 함께 읽고, 코드별 개수를 1차 근거로 쓴다.
+- Prometheus의 `increase()`는 구간에 맞춘 어림값이다(F7에서 실제 200 101개가 114.2로 나옴).
+- gpu-host는 사용자의 데스크톱이기도 해서 GPU가 쉬는 동안에도 사용률이 흔들린다(시험 중 쉬는 구간 최대 16%, 전력 최대 133 W). 그래서 판정을 "부하 중 평균 > 쉬는 구간 최댓값"으로 했다.
+- 알림(Alertmanager)은 없다. Prometheus 데이터는 local-path PVC라서 worker-cpu-1 VM을 다시 만들면 사라진다.
+- 근거: [`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md).
 
 ## 4. 제안서와 달라진 점
 
@@ -300,7 +484,7 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 | 하이퍼바이저 | KVM / libvirt | VMware Workstation Pro 26 + vmrest + Terraform provider | 이 데스크톱에 이미 설치·사용 중이다. vmrest API와 provider로 VM 생성·전원·삭제를 코드로 관리할 수 있다. KVM 모듈과 함께 동작하는 것도 확인했다. (`docs/progress-week08.md`, 인계서 13.2) |
 | 노드 중단 실험 명령 | `virsh destroy` | `vmrun -T ws stop <vmx> hard` | 하이퍼바이저 변경에 따른 대체. 복구는 `entry.sh`(Terraform이 꺼진 VM을 다시 켬) (`docs/labs/k3s-lab-20261030-1646.md`) |
 | 레지스트리 위치 | 연구실 내부 레지스트리 | 클러스터 안(worker-cpu-1), 고정 ClusterIP 10.43.0.50, 클러스터 내부 HTTP | 노드 IP가 DHCP라 바뀔 수 있어서 Service IP를 고정했다. 호스트에 서비스를 추가하지 않았다 (`infra/k8s/registry.yaml`) |
-| 이미지 빌드 | Jenkins가 빌드 | 지금은 `scripts/image-build.sh`가 클러스터 안 Kaniko로 빌드. Jenkins 단계에서 같은 방식을 재사용 | 호스트 Docker는 sudo가 필요하다. **[진행 중]** Jenkins 결과로 갱신 |
+| 이미지 빌드 | Jenkins가 빌드 | Jenkins 에이전트 파드(gpu-host)의 Kaniko 컨테이너가 빌드하고 push한다. 이미지마다 파드를 새로 만든다. 손으로 빌드할 때는 `scripts/image-build.sh`(같은 Kaniko 버전) | 호스트 Docker는 sudo가 필요하다. 에이전트를 gpu-host에 둔 것은 물리 PC라 메모리가 넉넉하고 CUDA 베이스 이미지(약 8GB)를 둘 디스크가 있어서다. Kaniko는 빌드가 끝나면 자기 파일시스템을 지워서 같은 컨테이너로 두 번째 이미지를 못 빌드해 이미지마다 파드를 쓴다 ([`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md), [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 10절) |
 | 학습 데이터 | (실험 주제 미정) | 시드 고정 합성 데이터 + 업로드한 `.npz` | 네트워크 다운로드 없이 재현된다. 실험 주제가 정해지면 `datasets.py`에 Dataset 하나만 추가한다 |
 | 추론 계산 | GPU | 8주차에는 CPU + 배치당 고정 비용(WORK_MS)으로 구조만 검증, 9–11주차에 CUDA(직접 작성한 커널) 경로를 추가하고 GPU가 없으면 CPU로 대체 | 큐·배치·타임아웃 구조를 먼저 검증한 뒤 GPU를 붙였다 (`docs/progress-week09.md`) |
 | 작업 상태 값 | PENDING / RUNNING / DONE / FAILED | `INTERRUPTED`를 추가 | SIGTERM으로 끊긴 시도와 진짜 실패를 구분한다. 재개 판단 기준은 그대로다(다시 RUNNING) |
@@ -310,6 +494,14 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 | API 파드 ×3 | 요청을 받는 API·전처리 파드 | 실제 API 구현 없이 `traefik/whoami` 기반 echo-api를 대역으로 써서 복제본·재시작·노드 중단 실습을 수행 | 실습의 목적은 클러스터 동작 확인이다 (`infra/k8s/labs/20-echo-api.yaml`) |
 | 다중 파드 분배 요청 수 | 300건 | 실습에서는 60건 | 13–16주 검증 실험에서 제안서 기준(300건)으로 다시 측정할 계획이다 (5.1) |
 | 학습 이미지 예시 | `python:3.11` + torch 2.x | `pytorch/pytorch:2.14.1-cuda13.0-cudnn9-runtime` | 제안서의 값은 예시였다. 호스트 드라이버 580의 최대 CUDA가 13.0이라 거기에 맞췄다 |
+| 배포 설정을 두는 Git 저장소 | 배포 설정(YAML)을 별도 디렉터리에 두고 Argo CD가 읽음 | 클러스터 안 Git 서버(Gitea)의 저장소 `k3slab/k3s-vmware-lab`. Argo CD가 읽는 값은 `charts/k3slab-workload/values-infer-argocd.yaml` | GitHub 저장소는 공개이고, Jenkins가 태그 커밋을 push하려면 클러스터에 GitHub 쓰기 자격증명이 필요하다. Gitea는 쓰기가 클러스터 안에서 끝난다. 일부러 깨뜨린 시험 커밋도 공개 저장소에 올리지 않는다. 나중에 GitHub로 바꾸려면 `repoURL`만 바꾸면 된다 ([`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md) 4절, [`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md)) |
+| Jenkins 빌드 시작 | Git push → Jenkins | Jenkins가 Gitea를 1분마다 폴링한다(웹훅 없음). 커밋 뒤 0~60초 늦게 시작한다. 실측 63.6 / 4.6 / 19.5초(각 1회) | Gitea는 사설 주소로 보내는 웹훅을 기본으로 막는다(`ALLOWED_HOST_LIST`). 바꾸려면 Gitea 설정을 바꾸고 다시 띄워야 하는데 worker-cpu-2는 메모리 limits가 안전 한도의 93%(계획 값)라 피했다. Jenkins 쪽 웹훅 주소(`/git/notifyCommit`)는 로그인 없이 부르는 주소라서 익명 접근을 모두 막은 설정과 맞지 않고, 토큰으로 막는 설정은 시험하지 않았다 ([`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 11절) |
+| 노드별 배치 | worker-cpu-1(6 GB)에 Jenkins·Argo CD·모니터링·MySQL, worker-cpu-2(3 GB)에 API·전처리 파드(중단 실험 대상) (제안서 3절 "VM, 노드 구성") | 배치 계획 B: VM 크기 그대로(증설 없음). Jenkins 컨트롤러·모니터링은 worker-cpu-1, Argo CD·Gitea는 worker-cpu-2, Jenkins 에이전트는 gpu-host. worker-cpu-2 메모리 limits 합계는 안전 한도의 93%(계획 값, 배포 뒤 합계는 86%)라 더 올리지 않는다 | 모니터링까지 worker-cpu-2에 두면 limits 합계가 안전 한도의 162%다. VM 증설은 필요해지면 쓸 대안으로 남겼다. 제안서와 달리 Argo CD를 worker-cpu-2에 둔 이유는 기록 없음(계획 문서는 그 배치를 전제로 계산했다) ([`plan-week11-capacity.md`](plan-week11-capacity.md) 1·4.5·5절) |
+| Argo CD 관리 범위 | 배포 설정을 Argo CD가 반영 (대상 범위는 제안서에 정하지 않음) | 추론 서비스(Deployment·Service)만. 학습 Job은 `scripts/job.sh`가 계속 맡는다 | MySQL에 PENDING을 먼저 등록하고 성공했을 때만 Job을 만드는 흐름과 같은 번호는 두 번 학습하지 않는 약속을 Git 기반 배포가 우회한다. Job은 요청마다 다르고 끝나는 객체라 prune·self-heal과 부딪친다 ([`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md) 3절) |
+| Argo CD 설치 방식 | 제안서에 정하지 않음 | 공식 `install.yaml` v3.6.2에 kustomize 패치(dex·notifications·ApplicationSet 컨트롤러 제거) | 공식 설치 파일은 컨테이너 `resources`가 모두 비어 있어(BestEffort) 메모리 값을 패치로 준다. Helm 차트를 쓰지 않은 이유와 세 구성요소를 뺀 이유는 이유 기록 없음 ([`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md), [`plan-week11-capacity.md`](plan-week11-capacity.md) 4.2절) |
+| 모니터링 설치 방식 | Prometheus가 지표를 모으고 Grafana 대시보드 한 장으로 본다 (설치 방식은 제안서에 정하지 않음) | 직접 쓴 매니페스트(kustomize). kube-prometheus-stack은 쓰지 않음 | 메모리가 빠듯하다(비교 때 Operator·사이드카가 200–300 MiB 더 드는 것으로 추정, 재지는 않음). 수집 대상 여섯 가지가 고정이라 Operator의 동적 디스커버리가 필요 없다. Argo CD가 폴더 하나로 관리할 수 있다. 대신 기본 대시보드·알림 규칙은 없다 ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md) "설치 방식 비교") |
+| 작업 상태 수집 | 대기·실행·완료·실패 작업 수를 대시보드에 | Grafana의 MySQL 데이터소스(읽기 전용 계정, SELECT만). mysqld-exporter는 쓰지 않음 | mysqld-exporter는 테이블 안의 값(상태별 작업 수, 진행 에폭, 중단·재개 이력)을 셀 수 없다. 추가 파드도 필요 없다 ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md)) |
+| GPU 지표 수집기 | GPU 사용률, VRAM 사용량 | dcgm-exporter 4.6.1-4.8.4. `nvidia.com/gpu`를 요청하지 않음 | 4.9.0은 기본 지표 이름과 단위를 바꾸므로 실험 도중 단위가 바뀌지 않게 4.8.4로 고정했다. GPU 요청을 빼서 GPU 1장을 학습·추론이 그대로 쓴다 ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md)) |
 
 ### 4.2 제안서에 없던 것을 추가한 것
 
@@ -319,16 +511,23 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 | 실습·시험 스크립트가 실행 기록을 `docs/labs/`에 자동 저장 (`k3s-lab.sh`, `train-resume-test.sh`, `job-db-test.sh`, `infer-*-bench.sh`) | 제안서 검증 계획의 "명령 기록" 방식을 따르고 PASS/FAIL을 남기기 위해서 |
 | 학습 Job의 `podFailurePolicy` | 잘못된 요청은 재시도해도 같은 결과라서 바로 실패시키기 위해서 |
 | DB 쓰기 보류와 나중 채움 | DB가 잠깐 멈춰도 학습을 멈추지 않기 위해서 |
+| CoreDNS의 `localdomain` 존 처리 (`infra/k8s/coredns-custom.yaml`, Ansible `k3s_server` 역할) | 파드에서 점이 4개인 서비스 이름을 푸는 데 6~10초 걸렸다. VM의 검색 도메인 `localdomain`이 파드로 넘어와 상위 DNS에서 시간 초과가 났다. 적용 뒤 0.01초 ([`labs/dns-localdomain-20261122-1625.md`](labs/dns-localdomain-20261122-1625.md)) |
+| Jenkins `gcc` 컨테이너 하나의 AppArmor `Unconfined` | gpu-host(Ubuntu)의 기본 AppArmor 프로파일이 컨테이너 안에서 자식 프로세스에 신호를 보내는 것을 막아 C++ 단계의 SIGTERM 시험이 실패했다. 다른 격리는 유지하고 그 컨테이너 하나만 풀었다. 호스트에 프로파일을 올리는 대안은 sudo가 필요해 사용자 결정으로 남겼다 ([`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 8절) |
+| node-exporter의 SELinux `spc_t` | Rocky VM에서 기본 라벨로는 `/proc/1/mountinfo`를 읽지 못해 디스크 지표가 빠졌다. 이 파드 하나의 SELinux 격리를 포기하고 4노드 디스크 지표를 얻었다 ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md)) |
+| CI의 봇 커밋 건너뛰기 규칙, 제한된 Gitea 계정 `k3slab-ci`, 읽기 전용 MySQL 계정 `k3slab_ro` | 태그 커밋이 다시 빌드를 만드는 고리를 막고, 토큰이나 계정이 새도 영향이 이 저장소·두 테이블의 읽기 범위를 넘지 않게 하기 위해서 |
+| 장애 실험 스크립트 `scripts/fault-test.sh`와 설계 문서 `docs/plan-week13-verification.md` | 제안서 14번의 중단 시나리오를 하나씩 일으키고 복구 시간과 실패 요청 수를 같은 방식으로 재기 위해서 |
 
 ### 4.3 일정
 
-3~4주차(9/21~10/4)는 시험 기간과 겹쳐 진행이 없었고, 10/15~10/30에는 커널 업데이트로 VMware 모듈이 빠져 클러스터가 멈춰 있었다. 그래서 4–8주차 항목을 10/30에 몰아서 실행·검증했고, 9주차부터 원래 일정으로 돌아와 9–11주차 항목(MySQL, 추론 GPU 경로, 학습 Dataset)을 11/7에 끝냈다. 자세한 표는 [부록 A](#부록-a-일정-대비-실제)에 있다.
+3~4주차(9/21~10/4)는 시험 기간과 겹쳐 진행이 없었고, 10/15~10/30에는 커널 업데이트로 VMware 모듈이 빠져 클러스터가 멈춰 있었다. 그래서 4–8주차 항목을 10/30에 몰아서 실행·검증했고, 9주차부터 원래 일정으로 돌아와 9–11주차 항목(MySQL, 추론 GPU 경로, 학습 Dataset)을 11/7에 끝냈다.
+
+11/20에 커널 7.0.0-43에서 같은 이유로 클러스터를 켜지 못했다. 11/22에 사용자가 VMware 모듈을 다시 빌드하고 Rocky ISO 확인 단계(보관 경로로 확인하도록 변경)와 사전 점검의 순서 문제를 풀어 클러스터를 다시 띄웠다. 그날 Jenkins(10–12주), Argo CD(11–13주), 모니터링(12–14주)을 올려 시험했고 검증 실험은 13주 몫(점검, 과부하, 잘못된 배포, 추론 파드 강제 종료)까지 했다. 제안서 일정보다 앞당겨 11주차 안에 한 것이다. 자세한 표는 [부록 A](#부록-a-일정-대비-실제)에 있다.
 
 ## 5. 검증 실험
 
-**[진행 중]** 제안서 일정: 13–16주. 제안서 14·15번의 시험을 그대로 따른다. 아래 표의 "사전 시험"은 앞선 주차에 이미 해 본 같은 종류의 측정이다. 최종 검증이 아니며, 13–16주에 같은 방식으로 다시 측정해 기록한다.
+**착수 (13주 몫 완료)** 제안서 일정은 13–16주이고, 제안서 14·15번의 시험을 그대로 따른다. 설계는 [`plan-week13-verification.md`](plan-week13-verification.md)(실험 번호 F1~F8은 그 문서 3절의 표를 따른다)이고 실행 스크립트는 `scripts/fault-test.sh`다. 11/22에 13주 몫인 읽기 전용 점검(`inspect`), F7 과부하, F8 잘못된 배포(CPU), F1 추론 파드 강제 종료(CPU, `force`)를 실제 클러스터에서 실행했다. 모두 CPU 전용이고 GPU는 쓰지 않았다. 실험마다 승인을 받고 명령 줄 그대로 실행했다. 아래 표의 "사전 시험"은 앞선 주차에 해 본 같은 종류의 측정이다. 최종 검증이 아니며, 남은 실험과 반복 측정은 13–16주에 같은 방식으로 기록한다.
 
-기록 방식: 각 시험마다 명령 기록, DB의 작업 상태, Grafana 화면(3.8 완료 후)을 함께 저장하고 `docs/labs/<이름>-<날짜시각>.md`로 남긴다. 이미지 태그, git 커밋, values 파일을 같이 적는다.
+기록 방식: 스크립트가 실험마다 `docs/labs/fault-<실험>-<날짜시각>.md`를 만들어 명령 줄, 측정값, PASS/FAIL 판정, 실험 뒤 되돌리기 확인(실험용 네임스페이스가 사라졌는지, 노드 4개 Ready, MySQL·레지스트리 1/1)을 남긴다. 이미지 태그와 모델 작업 번호도 적는다(git 커밋과 values 파일은 아직 적지 않았다). Prometheus 쿼리 결과를 보조 근거로 붙였다. Grafana 화면은 아직 저장하지 않았다(12주차 계획).
 
 ### 5.1 정상 실행 시나리오 (제안서 14번 ①)
 
@@ -337,82 +536,130 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 | 전체 흐름 | 템플릿 선택부터 결과 확인까지 1회 | 사람 개입 없이 결과 파일과 상태 기록이 남는다 | 예정 | `job.sh`로 submit → status → result → 추론 서빙까지 확인 ([`job-db-20261107-1258.md`](labs/job-db-20261107-1258.md) 1, 5, 7, 8절) |
 | 다중 파드 분배 | API·전처리 파드 3개로 요청 300건 | 세 파드에 나뉘고 실패가 없다 | 예정 | 요청 60건: 30/12/18로 나뉨 ([`k3s-lab-20261030-1646.md`](labs/k3s-lab-20261030-1646.md) 3절) |
 | 배치 처리 | 배치 크기 1과 8, 같은 요청 수 | 배치 8이 더 짧은 시간에 끝난다 | 예정 | 8.08 s vs 1.28 s ([`infer-bench-20261107-1257.md`](labs/infer-bench-20261107-1257.md)) |
-| 과부하 거절 | 큐 크기를 넘는 요청을 동시에 전송 | 초과분이 지연이 아니라 거절 응답으로 돌아온다 | 예정 | 300개 중 211개가 즉시 429 (같은 파일) |
+| 과부하 거절 (F7) | 큐 크기를 넘는 요청을 동시에 전송 | 초과분이 지연이 아니라 거절 응답으로 돌아온다 | **11/22 1회: PASS 11 / FAIL 0.** 큐 20·배치 4·스레드 1·WORK_MS 50(CPU)에 요청 300개, 동시 150개(설정값)를 1.32초 동안 보냈다. 200 = 101, 429 = 199, 그 밖의 응답 0. 429 응답 시간 중앙값 0.004초, 200은 0.294초. 부하 뒤 큐가 비고 파드 재시작 0. 실제 연결은 최대 25개였다 ([`fault-overload-20261122-1943.md`](labs/fault-overload-20261122-1943.md)) | 300개 중 211개가 즉시 429 (같은 파일) |
+
+- F7의 "동시 150"은 설정값이고 실제 연결은 최대 25개였다(부하 Job 쪽과 추론 파드 쪽이 같았다). 요청마다 curl을 새로 띄우고 429가 0.004초 만에 돌아와서 부하 전체가 1.32초에 끝났고, 그래서 연결이 150개까지 겹치지 못한 것으로 보인다(원인을 따로 확인하지는 않았다). "동시 150개가 들어왔다"가 아니라 "300개를 1.3초에 쏟아 최대 25개 연결이 겹쳤다"로 읽어야 한다. 429는 큐(용량 20)가 넘쳐서 났고 워커의 HTTP 스레드 풀(40개)은 한도가 아니었다.
+- 11/7 측정(3.5)과 비교하면 같은 설정에서 200이 89개에서 101개로 달랐다. 요청이 들어오는 타이밍 차이로 보지만 두 번만 재서 분산은 모른다. 11/7 측정의 "동시 150개"도 설정값이다. 그때는 실제 연결 수를 재지 않았다.
 
 ### 5.2 중단 상황 시나리오 (제안서 14번 ②)
 
-제안서의 순서: 파드 종료 → 잘못된 배포 → 학습 중단 → 배치 추론 중단 → DB 재시작 → 워커 VM 종료. 하나씩 재현한다.
+제안서의 순서: 파드 종료 → 잘못된 배포 → 학습 중단 → 배치 추론 중단 → DB 재시작 → 워커 VM 종료. 하나씩 재현한다. 11/22에는 1번과 2번을 CPU로 한 번씩 했다.
 
 | 순서 | 실험 | 기대하는 자동 동작 | 최종 검증 | 사전 시험 |
 |---|---|---|---|---|
-| 1 | 파드 종료 | Deployment가 새 파드를 만든다 | 예정 | 강제 삭제 2초 뒤 3개 복구, 컨테이너 종료는 RESTARTS 1 (`k3s-lab` 4절) |
-| 2 | 잘못된 배포 | 잘못된 배포가 드러나고 복구되는지(구체적인 기준은 Argo CD 이후 확정) | 예정 (Argo CD 이후) | 없음. 잘못된 *요청*(없는 데이터 파일)은 FAILED로 기록되고 재시도 없이 끝나는 것을 확인함 ([`job-db`](labs/job-db-20261107-1258.md) 6절) |
-| 3 | 학습 중단 | 마지막 체크포인트부터 이어서 학습 | 예정 | PASS 6/6 (v0.3), PASS 6/6 (v0.4) |
-| 4 | 배치 추론 중단 | 제안서 15번 기준: 중단된 지점 이후부터 처리가 이어진다(구체적인 기준은 아래 "채울 것") | 예정 | 없음 |
-| 5 | DB 재시작 | 학습은 계속되고 기록이 나중에 채워진다 | 예정 | MySQL 11초 중단 중 학습 계속, 기록 보류 후 채워짐 ([`job-db`](labs/job-db-20261107-1258.md) 4절) |
-| 6 | 워커 VM 종료 | 파드가 남은 노드로 옮겨진다 | 예정 | 44초 뒤 NotReady, 308초 뒤 다른 노드에서 Ready ([`k3s-lab`](labs/k3s-lab-20261030-1646.md) 5절) |
+| 1 | 파드 종료 (F1) | Deployment가 새 파드를 만든다 | **11/22 1회: PASS 8 / FAIL 0** (CPU, `force`: `--grace-period=0 --force`). 새 파드가 사람 개입 없이 Ready, 복구 시간 1.4초(1초 간격 확인이 만든 상한), 실패 요청 1 / 179(T0+0.6초), 시도한 새 파드 1개·재시작 0, 복구 뒤 마지막 30개 요청이 모두 200. `graceful`(SIGTERM + preStop 5초)과 GPU 변형은 예정 ([`fault-infer-kill-20261122-2041.md`](labs/fault-infer-kill-20261122-2041.md)) | 강제 삭제 2초 뒤 3개 복구, 컨테이너 종료는 RESTARTS 1 (`k3s-lab` 4절) |
+| 2 | 잘못된 배포 (F8) | 잘못된 배포가 드러나고 복구되는지 | **11/22 1회: PASS 9 / FAIL 0** (CPU). 레지스트리에 없는 태그 `v0.0.0-fault-missing`으로 `helm upgrade`하자 7.4초 만에 새 파드가 `ErrImagePull`이 됐다. 예전 파드가 계속 Ready라서 배포~롤백 중 실패 요청은 0 / 509였다. `helm rollback` 한 번으로 정상 복귀(0.3초), 롤백 뒤 Ready 1/1. GPU 변형은 예정 ([`fault-bad-deploy-20261122-2038.md`](labs/fault-bad-deploy-20261122-2038.md)) | 잘못된 *요청*(없는 데이터 파일)은 FAILED로 기록되고 재시도 없이 끝나는 것을 확인함 ([`job-db`](labs/job-db-20261107-1258.md) 6절). Argo CD 경로(Git에 없는 태그를 커밋)로는 아직 시험하지 않았다 |
+| 3 | 학습 중단 (F2) | 마지막 체크포인트부터 이어서 학습 | 예정 | PASS 6/6 (v0.3), PASS 6/6 (v0.4) |
+| 4 | 배치 추론 중단 | 제안서 15번 기준: 중단된 지점 이후부터 처리가 이어진다(구체적인 기준은 아래 "채울 것") | 예정. 설계는 이어서 실행이 아니라 F1이 실패 요청 수와 복구 시간을 재는 것이다 | 없음 |
+| 5 | DB 재시작 (F4) | 학습은 계속되고 기록이 나중에 채워진다 | 예정 | MySQL 11초 중단 중 학습 계속, 기록 보류 후 채워짐 ([`job-db`](labs/job-db-20261107-1258.md) 4절) |
+| 6 | 워커 VM 종료 (F3) | 파드가 남은 노드로 옮겨진다 | 예정. worker-cpu-2에 Argo CD가 있어서 시점과 조건을 나중에 따로 정한다 | 44초 뒤 NotReady, 308초 뒤 다른 노드에서 Ready ([`k3s-lab`](labs/k3s-lab-20261030-1646.md) 5절) |
 
-채울 것
+제안서의 여섯 가지 밖에 설계 문서가 더한 실험은 F5 `gpu-busy`(GPU를 못 쓰는 상황과 CPU 대체 경로), F6 `registry-down`(레지스트리 중단), F7 `overload`(5.1)이다. F5·F6은 예정이다.
 
-- [ ] 6종 각각의 명령 기록, 작업 상태, 대시보드 화면, 걸린 시간
-- [ ] 배치 추론 중단에서 "이어서 실행"이 무엇을 뜻하는지 정하기. 지금 추론 워커의 요청 큐는 메모리에만 있어서(`apps/infer/queue.h`) 워커 파드가 죽으면 큐에 있던 요청은 사라진다. 클라이언트 재요청으로 볼지, 별도 기록이 필요한지 시험 전에 정한다
-- [ ] 자동으로 복구된 것과 사람이 개입해야 했던 것의 구분표 (제안서 기대 효과 3번)
-- [ ] 막을 수 없는 장애와 막을 수 있는 장애의 구분: 막을 수 없는 쪽은 GPU 고장, 디스크 고장 시 local-path 데이터 손실이고, 막을 수 있는 쪽은 파드·노드 중단, DB 재시작이다 (`docs/progress-week09.md`의 정리, 한계 7절과 연결)
+**11/22 실험에서 자동으로 된 것과 사람이 해야 했던 것** (제안서 기대 효과 3번, 세 실험의 결과만 정리한 중간 구분표)
+
+| 실험 | 자동으로 된 것 | 사람이 해야 했던 것 |
+|---|---|---|
+| F1 파드 강제 종료 | 새 파드가 같은 초에 만들어지고 Ready까지 1.4초 안에 돌아왔다 | 없음. 죽는 순간 처리 중이던 요청이거나 새 파드가 Ready가 되기 직전의 요청으로 보이는 1개는 실패했다(코드 `000`만으로는 원인을 구분하지 못했다). 그런 요청은 클라이언트가 다시 보내야 한다 |
+| F8 잘못된 배포 | 새 파드는 Ready가 되지 못하고 멈췄고, 예전 파드가 서비스를 이어 갔다(실패 요청 0) | 이상을 알아차리는 것(파드 상태나 Prometheus `kube_pod_container_status_waiting_reason`)과 롤백 명령 한 번. 자동으로 롤백되지는 않았다(새 파드는 롤백할 때까지 Pending) |
+| F7 과부하 | 큐가 차자 즉시 429로 거절하고 받아들인 요청만 처리했다. 부하가 끝나자 큐가 비고 정상으로 돌아왔다 | 없음(실험하지 않았지만 증설 여부의 결정은 사람 몫이다. 설계 문서 2.3절) |
+
+**읽는 법과 한계**
+
+- F1의 복구 시간 1.4초는 정확한 값이 아니라 상한이다(확인 간격 1초 + `kubectl` 응답 시간). 쿠버네티스가 적은 시각은 1초 단위라 스케줄·시작·Ready가 모두 `+0초`로만 나왔다. 작은 모델(`model.k3sm` 38,468바이트)의 CPU 파드이고 이미지가 노드에 이미 있었다. 큰 모델이나 GPU(CUDA 초기화·모델 적재)는 훨씬 오래 걸릴 수 있다. 1회 값이라 두세 번 더 재서 판정 기준을 정한다(임시 기준 60초는 너무 느슨했고, 제안은 10초 안팎).
+- F8의 롤백 0.3초는 새 파드가 뜨는 시간이 아니다. 예전 파드가 계속 Ready여서 Deployment 설정만 되돌린 시간이다. 예전 파드가 없는 상황(GPU 변형은 `maxSurge 0`이라 예전 파드를 먼저 내린다고 예상한다)은 이 숫자로 알 수 없다. 이미지는 맞지만 시작하자마자 죽는 경우와 readiness 실패는 하지 않았다.
+- F7과 모니터링: 큐 길이 게이지는 짧은 포화를 놓친다(0.2초 샘플 20/20, Prometheus 최댓값 16). Prometheus `increase()`는 어림값이다(200이 실제 101개인데 114.2). 그래서 클라이언트가 센 코드별 개수를 1차 근거로 썼다. 워커가 히스토그램 버킷을 내보내기 전이라 지연 p50/p95는 쓰지 못하고 클라이언트가 잰 응답 시간만 적었다.
+- 세 실험 모두 시작 때 `ci` 네임스페이스에는 `jenkins-0`(컨트롤러)만 있었고 gpu-host에 Jenkins 에이전트 파드는 없었다. gpu-host CPU는 1,056~1,553m(6~9%)였다. 그래서 빌드가 부하 시험에 CPU를 쓰지 않았다.
+- `kubectl delete pod --force`는 gpu-host AppArmor에 걸리지 않았다. 7절의 AppArmor 제약은 컨테이너 안에서 자식 프로세스에 신호를 보내는 경우의 문제이고, kubelet이 밖에서 보내는 신호는 영향이 없다.
+- 모두 1회 실행이다. 분산은 모른다.
+
+**막을 수 없는 장애의 근거** (`inspect`, 11/22, 읽기 전용, [`fault-inspect-20261122-1940.md`](labs/fault-inspect-20261122-1940.md)): 컨트롤 플레인 노드 1개, GPU를 요청하는 파드 0개(시험 시점), PV 5개가 모두 VM 노드(worker-cpu-1 4개, worker-cpu-2 1개)의 local-path에 묶여 있고, 복제본 1개짜리 Deployment가 13개다(argocd 3, k3slab-system 3, kube-system 4, monitoring 3). 막을 수 없는 장애와 막을 수 있는 장애의 구분은 설계 문서 2절에 있고 7절 한계와 연결된다.
+
+채울 것 (남은 것)
+
+- [ ] 남은 중단 상황의 명령 기록, 작업 상태, 대시보드 화면, 걸린 시간: F2 학습 중단, F3 워커 VM 종료, F4 DB 재시작, F5·F6, F1 `graceful`과 GPU 변형, F8 GPU 변형, F1 CPU 반복
+- [ ] 배치 추론 중단에서 "이어서 실행"이 무엇을 뜻하는지 정하기. 지금 추론 워커의 요청 큐는 메모리에만 있어서(`apps/infer/queue.h`) 워커 파드가 죽으면 큐에 있던 요청은 사라진다. 설계 문서는 이를 "이어서 실행"이 아니라 "실패 요청 수와 복구 시간"으로 재는 것으로 정했다(F1). 제안서 기준과 다르므로 확정할 때 이 차이를 적는다
+- [ ] 위 구분표를 6종 전체로 넓히기 (제안서 기대 효과 3번)
+- [ ] 실험마다 Grafana 화면 저장 (제안서 14번 기록 방식)
+- [ ] Argo CD 경로의 잘못된 배포: Git에 없는 태그를 커밋했을 때와 Git revert로 복구하는 것
 
 ### 5.3 평가 기준 (제안서 15번)
 
 | 평가 항목 | 확인 방법 | 판단 기준 | 최종 검증 | 사전 시험 |
 |---|---|---|---|---|
 | 재현성 | 같은 템플릿과 태그로 2회 실행 | 두 실행의 환경과 결과 구조가 같다 | 예정 | 없음 (같은 `job.sh` 명령은 같은 values로 같은 Job을 만든다) |
-| 자동 배포 | 코드 수정 후 반영까지 관찰 | 사람이 배포 명령을 치지 않는다 | 예정 (3.7) | 없음 |
-| 자동 복구 | 파드·노드 중단 실험 | 재시작 또는 재배치가 자동으로 일어난다 | 예정 | `k3s-lab` 4, 5절 |
+| 자동 배포 | 코드 수정 후 반영까지 관찰 | 사람이 배포 명령을 치지 않는다 | **11/22 1회 확인** (3.7). 커밋 `ab7b937`부터 새 파드의 digest 확인까지 320.1초, 사람 손 없음. 반복 측정은 예정 | Argo CD 시험 PASS 23·FAIL 0 (자가 치유, 새 리비전, rollback) |
+| 자동 복구 | 파드·노드 중단 실험 | 재시작 또는 재배치가 자동으로 일어난다 | 파드 중단은 11/22 1회 확인(F1, 5.2). 노드 중단(F3)은 예정 | `k3s-lab` 4, 5절 |
 | 이어서 실행 | 학습·배치 중단 실험 | 체크포인트 이후부터 처리가 이어진다 | 예정 (학습은 사전 시험 있음, 배치 추론은 없음) | `train-resume` PASS 6/6 |
-| 관측 | 모든 실험 | 발생한 상황이 대시보드에 나타난다 | 예정 (3.8) | 없음 |
+| 관측 | 모든 실험 | 발생한 상황이 대시보드에 나타난다 | 일부 확인 (3.8): 과부하의 429 비율과 큐 길이, 파드 교체, 지연 p50/p95가 대시보드에 나타났다. 장애 실험별 Grafana 화면은 예정 | 모니터링 시험 PASS 70·FAIL 0 |
 
 ## 6. 결과
 
-### 6.1 지금까지 측정한 값 (끝난 구현)
+### 6.1 지금까지 측정한 값
 
 | 영역 | 항목 | 값 | 근거 |
 |---|---|---|---|
 | 인프라 | 처음부터 구축 / 정상 상태 재실행 | 약 16분 / 1분 59초 | 인계서 13.11 |
+| 인프라 | 11/22 기동 복구 후 `entry.sh` 9단계 | 모두 통과, 총 1분 51초, Ansible `changed=0`, 노드 4개 Ready | [`plan-week11-capacity.md`](plan-week11-capacity.md) 2절 |
 | 클러스터 | K3s 실습 5개 | PASS 11/11 (노드 4대 Ready) | [`k3s-lab-20261030-1646.md`](labs/k3s-lab-20261030-1646.md) |
 | 클러스터 | 파드 강제 삭제 후 복구 | 2초 | 같은 파일 4절 |
 | 클러스터 | 노드 강제 종료 후 NotReady / 다른 노드에서 Ready | 44초 / 이어서 308초 | 같은 파일 5절 |
+| 클러스터 | 파드의 긴 서비스 이름 풀이 (VM 노드, `localdomain` 처리 전 → 후) | 6.01 s → 0.01 s | [`dns-localdomain-20261122-1625.md`](labs/dns-localdomain-20261122-1625.md) |
 | 학습 | 중단·재개 시험 | 10/30 PASS 6/6, 11/7 PASS 6/6 | [`train-resume-20261030-1716.md`](labs/train-resume-20261030-1716.md), [`train-resume-20261107-1253.md`](labs/train-resume-20261107-1253.md) |
 | 추론 | 배치 1 vs 8 (요청 400개) | 8.08 s vs 1.28 s | [`infer-bench-20261107-1257.md`](labs/infer-bench-20261107-1257.md) |
-| 추론 | 큐 20에 요청 300개(동시 150개) | 211개 즉시 429 | 같은 파일 |
+| 추론 | 큐 20에 요청 300개(동시 150개) | 211개 즉시 429 (11/7) | 같은 파일 |
 | 추론 | 큰 모델 배치 계산 시간 합, CPU vs GPU | 4.488 s vs 0.111 s (약 1/40) | [`infer-gpu-bench-20261107-1246.md`](labs/infer-gpu-bench-20261107-1246.md) |
 | 추론 | 작은 모델 배치 계산 시간 합, CPU vs GPU | 0.003 s vs 0.076 s (GPU가 더 느림) | 같은 파일 |
 | 추론 | GPU vs CPU 결과 차이(최대 상대 오차) | 4.19e-07 (작은 모델), 1.33e-06 (큰 모델) | 같은 파일 |
 | 작업 DB | 시험 | PASS 18/18. DB 11초 중단 중에도 학습 계속, 기록 빠짐없이 채워짐 | [`job-db-20261107-1258.md`](labs/job-db-20261107-1258.md) |
+| CI | Jenkins 시험 | PASS 42/42. 빌드 한 번(검사 4단계 + 이미지 2개) 약 3분 50초. 일부러 실패시킨 두 건 모두 이미지 단계 건너뜀 | [`jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) |
+| CD | Argo CD 시험 | PASS 23·FAIL 0. 처음 sync 21초(DNS 수정 뒤 3.9초), 자가 치유 2초·1초, 새 리비전 55초, rollback 22초 | [`argocd-20261122-1612.md`](labs/argocd-20261122-1612.md), [`cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 6절 |
+| CI/CD | 코드 커밋 → 새 파드의 digest 확인 | **320.1초** (폴링 대기 63.6초 포함, 이미지 단계 169.8초가 가장 김). 사람 손 없이 이어짐. revert 경로 243.0초 | [`cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 4·5절 |
+| CI/CD | 단위 시험이 실패하는 커밋 | 커밋부터 25.9초에 FAILURE. 이미지·태그 커밋·배포 없음, 기존 파드 그대로 | 같은 파일 3·5절 |
+| CI/CD | 연결 시험 | PASS 62·FAIL 0 | 같은 파일 |
+| 모니터링 | 시험 | PASS 70·FAIL 0. 수집 대상 11개 up, 대시보드 쿼리 61개 오류 0 | [`monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) |
+| 모니터링 | 보통 부하(GPU 워커, 60초) | 요청 346000개(초당 5766.7). Prometheus 카운터 증가량 = 클라이언트가 센 200 응답 수. GPU 사용률 평균 46.93%(쉬는 구간 최댓값 2.00%) | 같은 파일 7절 |
+| 모니터링 | 과부하(큐 20, CPU 워커) | 32000개 중 429가 29562개(92.4%), 큐 길이 20/20 | 같은 파일 7절 |
+| 모니터링 | monitoring 네임스페이스 실사용 메모리 합계 | 944 MiB | 같은 파일 8절 |
+| 장애 실험 | F7 과부하 | 300개(동시 150개, 설정값, 실제 최대 연결 25개) → 200 = 101, 429 = 199. 429 중앙값 0.004초 | [`fault-overload-20261122-1943.md`](labs/fault-overload-20261122-1943.md) |
+| 장애 실험 | F8 잘못된 배포 (CPU) | 이미지 받기 실패까지 7.4초. 배포~롤백 중 실패 요청 0 / 509. 롤백 0.3초 | [`fault-bad-deploy-20261122-2038.md`](labs/fault-bad-deploy-20261122-2038.md) |
+| 장애 실험 | F1 추론 파드 강제 종료 (CPU, force) | 복구 시간 1.4초(상한). 실패 요청 1 / 179 | [`fault-infer-kill-20261122-2041.md`](labs/fault-infer-kill-20261122-2041.md) |
 
 - 위 값은 모두 1회 실행 결과이고 반복 측정으로 분산을 구하지는 않았다.
-- 시험 스크립트가 집계한 PASS 수는 실습 11, 학습 재개 6(10/30), 학습 재개 6(11/7), 작업 DB 18이고 FAIL은 0이다. 10/30 17:02의 학습 v0.2 시험은 재개 단계에서 실패했고(3.4), 원인을 고쳐 v0.3으로 다시 통과했다.
+- 시험 스크립트가 집계한 PASS 수는 실습 11, 학습 재개 6(10/30), 학습 재개 6(11/7), 작업 DB 18, Jenkins 42, Argo CD 23, 코드 → 배포 연결 62, 모니터링 70, 장애 실험 F7 11·F8 9·F1 8이고 위 각 시험의 마지막 실행은 FAIL이 0이다. 고치기 전 실행에는 FAIL이 있었다. 10/30 17:02의 학습 v0.2 시험은 재개 단계에서 실패했고(3.4) 원인을 고쳐 v0.3으로 다시 통과했다. 11/22 Jenkins는 시행 7번 중 6번이 도중에 실패했고, 모니터링은 시행 6번 중 3번이 FAIL을 냈다(3.7, 3.8). 중간 보고서는 지우지 않고 남겼다.
+- 11/22 장애 실험 보고서의 시각은 이 PC(gpu-host)의 시계 기준이고 확인 간격(약 1초) 안팎의 오차가 있다. 연결 시험은 단계 사이 값에 최대 1초 오차가 있다.
 
-### 6.2 채울 결과
+### 6.2 남은 결과
 
-- [ ] CI/CD: 코드 수정부터 클러스터 반영까지 걸린 시간, 사람이 개입한 횟수 (3.7)
-- [ ] 모니터링: 대시보드 캡처, 시나리오별 화면 (3.8)
-- [ ] 검증 실험: 정상 실행 4종, 중단 상황 6종, 평가 기준 5개의 판정과 구분표 (5절)
-- [ ] 자원 사용: Jenkins·Argo CD·모니터링을 올린 뒤 worker-cpu-1 등의 메모리 사용 (7절 "메모리"와 연결)
+CI/CD, 모니터링, 자원 사용은 위 6.1과 3.7, 3.8, 2.1에 채웠다.
+
+- [x] CI/CD: 코드 수정부터 클러스터 반영까지 320.1초. 성공 경로에서 사람이 한 일은 코드 커밋을 올린 것뿐이고, 빌드 시작, 이미지 push, 태그 커밋, 배포는 자동이었다 (3.7)
+- [x] 모니터링: 대시보드 캡처 (3.8)
+- [x] 자원 사용: Jenkins·Argo CD·모니터링을 올린 뒤의 노드별 메모리 사용 (2.1, 7절 "메모리")
+- [ ] 모니터링: 장애 실험 시나리오마다의 화면 (5절)
+- [ ] 검증 실험: 정상 실행 4종 중 1종(F7), 중단 상황 6종 중 2종(F1, F8)을 11/22에 CPU로 1회씩 했다. 나머지 종류와 평가 기준 5개의 최종 판정, 구분표는 예정 (5절)
+- [ ] CI/CD 반복 측정: 경로마다 한 번씩만 재서 시간의 분산을 모른다
 
 ## 7. 한계
 
 | 한계 | 내용 | 영향·근거 |
 |---|---|---|
-| 단일 물리 호스트 | VM 3대와 gpu-host가 한 데스크톱(32 GB) 위에 있다. 호스트 OS 재부팅, 절전, 커널 업데이트가 4노드를 동시에 멈춘다 | 노드 중단 실험은 VM 한 대를 끄는 것으로 한정되고, 호스트 전체 장애나 노드 사이 네트워크 분리는 재현하지 못한다. 실제로 10/15~10/30에 커널 업데이트로 VMware 모듈이 빠져 클러스터가 멈췄고(`docs/progress-week08.md`), 11/20에 커널 7.0.0-43에서 다시 모듈이 없어 기동하지 못했다 |
-| 호스트 도구의 불안정 | Workstation 커널 모듈은 커널 업데이트 때 자동으로 다시 빌드되지 않는다. 복구는 sudo가 필요한 콘솔 작업이다. vmrest는 사용자 프로세스라 재부팅하면 멈춘다. provider 2.0.1은 VM 설정을 바꿀 때마다 강제 전원 차단을 한다 | 인계서 14장 위험 1, 3, 11 |
-| 기준 ISO 고정 | 11/20 `entry.sh`가 2/9단계(ISO 확인)에서 멈췄다. 고정해 둔 Rocky 9.8 ISO가 공식 CHECKSUM에 더 이상 없다(9.9로 교체된 것으로 보임). 골든 이미지가 이미 있으면 빌드는 필요 없지만 확인 단계가 막는다 | 처음부터 다시 구축하려면 고정값과 확인 방식을 정해야 한다. 11/20 기준 미해결이고 해결 방식은 사용자 결정 대기다 |
-| GPU 1장 | 학습과 추론이 GPU를 동시에 쓸 수 없다. 두 번째 GPU 파드는 Pending이다. 24 GB VRAM을 데스크톱의 다른 GPU 사용(게임 등)과도 나눈다 | `k3s-lab` 2절, `docs/gpu-host-join-prep.md` |
-| 데이터 보존 | 레지스트리(20 Gi)와 MySQL(5 Gi)은 worker-cpu-1의 local-path 볼륨이라 파드·MySQL 재시작은 견디지만 그 VM을 다시 만들거나 디스크가 고장 나면 사라진다. 체크포인트와 입력 파일은 gpu-host의 hostPath다. 복제나 백업 구성은 저장소에 없다 | `infra/k8s/registry.yaml`, `infra/k8s/mysql.yaml`. 레지스트리는 `image-build.sh`로 다시 채울 수 있지만 DB 기록과 체크포인트는 다시 만들 수 없다 |
-| 제어 노드 1대 | k3s-server가 하나다. 제안서의 중단 시나리오 6종에 제어 노드 장애는 들어 있지 않다 | 검증 범위 밖 |
-| 메모리 | VM 설정 합계 12 GB. worker-cpu-1(6 GB)에 레지스트리(요청 64 Mi)와 MySQL(요청 512 Mi, 상한 1 Gi)이 있고 Jenkins·Argo CD·모니터링이 더해질 예정이다 | **[진행 중]** 3.7·3.8의 실측으로 채움 |
+| 단일 물리 호스트 | VM 3대와 gpu-host가 한 데스크톱(32 GB) 위에 있다. 호스트 OS 재부팅, 절전, 커널 업데이트가 4노드를 동시에 멈춘다 | 노드 중단 실험은 VM 한 대를 끄는 것으로 한정되고, 호스트 전체 장애나 노드 사이 네트워크 분리는 재현하지 못한다. 실제로 10/15~10/30에 커널 업데이트로 VMware 모듈이 빠져 클러스터가 멈췄고(`docs/progress-week08.md`), 11/20에 커널 7.0.0-43에서 다시 모듈이 없어 기동하지 못했다. 11/22에 사용자가 콘솔에서 모듈을 다시 빌드해 복구했다 |
+| 호스트 도구의 불안정 | Workstation 커널 모듈은 커널 업데이트 때 자동으로 다시 빌드되지 않는다. 복구는 sudo가 필요한 콘솔 작업이라 사용자가 해야 한다. vmrest는 사용자 프로세스라 재부팅하면 멈춘다. provider 2.0.1은 VM 설정을 바꿀 때마다 강제 전원 차단을 한다 | 인계서 14장 위험 1, 3, 11 |
+| 기준 ISO 고정 | 11/20 `entry.sh`가 2/9단계(ISO 확인)에서 멈췄다. 고정해 둔 Rocky 9.8 ISO가 공식 경로의 CHECKSUM에서 빠졌다(9.9로 교체). 11/22에 CHECKSUM과 서명을 보관 경로(vault)에서 읽게 바꿔 풀었다(서명 키 지문, `gpgv`, 고정 SHA-256 확인은 그대로) | 처음부터 다시 구축할 때의 ISO 확인이 보관 경로에 의존하게 됐다. 골든 이미지가 이미 있으면 빌드는 필요 없다 ([`plan-week11-capacity.md`](plan-week11-capacity.md) 2.1절) |
+| GPU 1장 | 학습과 추론이 GPU를 동시에 쓸 수 없다. 두 번째 GPU 파드는 Pending이다. 24 GB VRAM을 데스크톱의 다른 GPU 사용(게임 등)과도 나눈다. 모니터링의 GPU 값도 쉬는 동안 흔들린다(사용률 최대 16%, 전력 최대 133 W) | `k3s-lab` 2절, `docs/gpu-host-join-prep.md`, [`monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) 9.3절 |
+| 데이터 보존 | 레지스트리(20 Gi), MySQL(5 Gi), Jenkins(5 Gi), Prometheus(3 Gi)는 worker-cpu-1의, Gitea(1 Gi)는 worker-cpu-2의 local-path 볼륨이라 파드 재시작은 견디지만 그 VM을 다시 만들거나 디스크가 고장 나면 사라진다. 체크포인트와 입력 파일은 gpu-host의 hostPath다. 복제나 백업 구성은 저장소에 없다 | `infra/k8s/registry.yaml`, `infra/k8s/mysql.yaml`, [`fault-inspect-20261122-1940.md`](labs/fault-inspect-20261122-1940.md)(PV 5개). 레지스트리는 `image-build.sh`나 Jenkins로 다시 채울 수 있고 Gitea 저장소는 작업 폴더에서 다시 채울 수 있지만, DB 기록과 체크포인트는 다시 만들 수 없다 |
+| 제어 노드 1대 | k3s-server가 하나다. 제안서의 중단 시나리오 6종에 제어 노드 장애는 들어 있지 않다 | 검증 범위 밖. 복제본 1개짜리 Deployment가 13개다(`inspect`) |
+| 메모리 | VM 설정 합계 12 GB. worker-cpu-1(6 GB)은 모두 올린 뒤 2,098~2,196 MiB(37~38%)를 쓴다. worker-cpu-2(3 GB)는 limits 합계가 안전 한도의 93%(계획 값, 배포 뒤 합계 86%)라서 Argo CD·Gitea의 limits를 더 올릴 수 없다. k3s-server(3 GB)는 사용량이 53%에서 70~73%로 올랐다(이유는 확인하지 않음). 사용량은 모두 `kubectl top`으로 잰 값이다(Jenkins 시험 중에는 15초 간격 표본의 최대값, 그 밖에는 1회 읽은 값). 학습과 빌드가 동시에 도는 경우의 기록은 없다 | 2.1절, [`plan-week11-capacity.md`](plan-week11-capacity.md), [`jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 5절. 올려야 하면 worker-cpu-2를 4 GB로 늘리는 대안이 있다(적용하지 않음) |
 | 노드 IP | vmnet8 DHCP 임대라 서버 IP가 바뀔 수 있다. 바뀌면 인벤토리를 다시 만들고 gpu-host 합류를 다시 해야 한다 | 인계서 위험 5, `docs/gpu-host-join-prep.md` |
 | 노드 장애 대응 지연 | 기본 toleration 300초 때문에 파드 이동까지 약 5분 걸렸고, 노드가 돌아와도 자동 재균형이 없다. `tolerationSeconds`는 바꾸지 않았다 | `k3s-lab` 5절 |
-| 보안 | 레지스트리는 HTTP이고 인증이 없다(클러스터 내부 주소만). 작업 창구 `job.sh`는 kubeconfig를 가진 사용자만 쓸 수 있고, 그 밖의 사용자 인증·권한 구분은 없다. Terraform provider는 TLS 인증서를 검증하지 않는다(vmrest는 루프백 전용) | 인계서 위험 4 |
+| 보안 | 레지스트리는 HTTP이고 인증이 없다(클러스터 내부 주소만). 작업 창구 `job.sh`는 kubeconfig를 가진 사용자만 쓸 수 있고, 그 밖의 사용자 인증·권한 구분은 없다. Terraform provider는 TLS 인증서를 검증하지 않는다(vmrest는 루프백 전용). Argo CD는 관리자 계정을 그대로 쓰고(SSO 없음) Jenkins·Argo CD·Grafana 화면은 클러스터 밖으로 열지 않는다(port-forward만) | 인계서 위험 4, [`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md) 9절 |
+| 일부러 푼 격리 | Jenkins의 `gcc` 컨테이너 하나는 AppArmor `Unconfined`다(gpu-host의 기본 프로파일이 컨테이너 안 신호 전달을 막아서). node-exporter 파드 하나는 SELinux 라벨 `spc_t`다. 둘 다 다른 격리(seccomp, `privileged: false`, 읽기 전용 마운트 등)는 유지했다 | gpu-host의 다른 파드도 같은 AppArmor 제약을 받을 수 있다(`kill`, `timeout`, 셸 `trap` 정리 등). VM 노드(Rocky)는 AppArmor가 아니라 SELinux라 없을 것으로 보지만 확인하지 않았다. 호스트에 프로파일을 올리는 대안은 사용자 결정으로 남겼다 ([`jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 8절, [`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md)) |
+| CI/CD의 한계 | 코드 커밋 뒤 0~60초(Jenkins 폴링)에 Argo CD의 30초 확인 주기가 더해진다. 봇 커밋마다 건너뛴 빌드가 하나 생긴다. 작업 폴더 스냅샷 시험 경로(`scripts/jenkins-run.sh`)는 `--source-dir`에 최상위 폴더가 없으면 메시지 없이 멈춘다. 각 경로를 한 번씩만 재서 분산을 모른다 | 3.7절, [`cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) 14절 |
+| 알려진 결함 | `apps/train/train.py`는 이미 DONE인 작업 번호에 다른 `model_version`을 주면 버전 충돌 검사보다 "already DONE" 검사가 먼저라서 오류 없이 종료 코드 0으로 끝난다. 새 버전의 모델은 만들어지지 않았는데 Job은 성공으로 보인다 | 어느 쪽으로 고칠지는 작업 DB 설계가 정할 일이라 고치지 않았다 ([`jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) 9절) |
 | 워크로드의 현실성 | 학습은 합성 데이터 또는 업로드한 표 데이터와 작은 MLP, 추론 입력은 64개 숫자다. 연구실의 실제 모델·데이터셋으로는 검증하지 않았다 | 교체 지점(`datasets.py`)만 만들어 두었다 |
-| 측정의 한계 | 부하 도구가 curl이고 모든 값이 1회 실행 결과다. 큰 모델에서도 전체 시간이 1.2초 밑으로 줄지 않는 것은 클라이언트 쪽 한계로 설명했다 | `docs/progress-week09.md` |
+| 측정의 한계 | 부하 도구가 curl이고 모든 값이 1회 실행 결과다. "동시 N개"는 설정값이고 실제 연결은 더 적었다(F7에서 150 → 25, 모니터링 과부하에서 300 → 229). 큐 길이 게이지는 5초 수집이라 짧은 포화를 놓치고, Prometheus `increase()`는 어림값이다. 지연 p50/p95는 첫 버킷(≤ 0.5 ms) 안의 보간 값이다. 큰 모델에서도 전체 시간이 1.2초 밑으로 줄지 않는 것은 클라이언트 쪽 한계로 설명했다 | `docs/progress-week09.md`, [`fault-overload-20261122-1943.md`](labs/fault-overload-20261122-1943.md) 5.2절, [`monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) 9.3절 |
+| 검증 실험의 범위 | 11/22에는 CPU 전용으로 F1(force)·F7·F8만 했다. GPU를 쓰는 변형, F2~F6, F1 `graceful`은 아직 하지 않았다. 장애 실험마다 Grafana 화면을 저장하지 않았다 | 5절 |
 
 ## 8. 결론
 
@@ -433,7 +680,7 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 
 ## 부록 A. 일정 대비 실제
 
-1주차 = 9/7. 11주차 = 11/16~11/22.
+1주차 = 9/7. 11주차 = 11/16~11/22(2026-11-22는 11주차 마지막 날이고 12주차는 11/23부터).
 
 | 일정 항목 | 계획 주차 | 실제 | 비고 |
 |---|---|---|---|
@@ -444,11 +691,11 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 | Python 학습 흐름·체크포인트 저장 | 6–9 | 핵심 10/30, 데이터 로더 분리 11/7 | |
 | C++ 추론 워커 (큐·배치·타임아웃) | 8–11 | 큐·배치·타임아웃 10/30, GPU 경로 11/7 | |
 | MySQL 작업 상태 연동·중복 방지 | 9–11 | 11/7 (PASS 18/18) | |
-| Jenkins 빌드·테스트 자동화 | 10–12 | **[진행 중]** | |
-| Argo CD 배포 자동화 | 11–13 | **[진행 중]** | |
-| Prometheus·Grafana 대시보드 | 12–14 | **[진행 중]** | |
-| 정상 실행·중단 상황 검증 실험 | 13–16 | **[진행 중]** 준비 | 11/20 클러스터 기동 막힘(7절) |
-| 결과 정리·보고서 및 발표 준비 | 15–16 | 이 문서(뼈대) | |
+| Jenkins 빌드·테스트 자동화 | 10–12 | 11/22 완료 (PASS 42/42) | 11주차 안에 끝냄. 11/20~21 클러스터 기동이 막혀 있어서 11/21에는 클러스터 없이 검증만 했다([`labs/jenkins-offline-20261121-1300.md`](labs/jenkins-offline-20261121-1300.md)) |
+| Argo CD 배포 자동화 | 11–13 | 11/22 완료 (PASS 23·FAIL 0) | **일정보다 앞당김**. 코드 커밋 → Jenkins → 태그 커밋 → Argo CD 연결도 11/22에 확인(PASS 62·FAIL 0) |
+| Prometheus·Grafana 대시보드 | 12–14 | 11/22 완료 (PASS 70·FAIL 0) | **일정보다 앞당김** |
+| 정상 실행·중단 상황 검증 실험 | 13–16 | **착수** 11/22. 13주 몫(점검, 과부하, 잘못된 배포 CPU, 추론 파드 강제 종료 CPU)을 완료 | **일정보다 앞당겨 시작**. F2~F6, F1 `graceful`, GPU 변형은 12주차 이후(5절) |
+| 결과 정리·보고서 및 발표 준비 | 15–16 | 이 문서(초안, 11/22 갱신) | 검증 실험 결과로 5·6·8절을 확정한다 |
 
 ## 부록 B. 근거 파일
 
@@ -456,7 +703,14 @@ scripts/job.sh submit ──▶ MySQL jobs (PENDING) ──▶ Helm (charts/k3sl
 |---|---|
 | 요약 | [`README.md`](../README.md), [`progress-week08.md`](progress-week08.md), [`progress-week09.md`](progress-week09.md), [`progress-week11.md`](progress-week11.md) |
 | 인프라 | [`vmware-iac-handoff.md`](vmware-iac-handoff.md), [`gpu-host-join-prep.md`](gpu-host-join-prep.md), [`plan-week05-06.md`](plan-week05-06.md), [`README.md`](README.md)(스크립트 단계별 흐름) |
-| 이미지 | [`image-builds.md`](image-builds.md) |
-| 실행 기록 | [`labs/k3s-lab-20261030-1646.md`](labs/k3s-lab-20261030-1646.md), [`labs/train-resume-20261030-1702.md`](labs/train-resume-20261030-1702.md), [`labs/train-resume-20261030-1716.md`](labs/train-resume-20261030-1716.md), [`labs/train-resume-20261107-1253.md`](labs/train-resume-20261107-1253.md), [`labs/infer-bench-20261030-1720.md`](labs/infer-bench-20261030-1720.md), [`labs/infer-bench-20261107-1257.md`](labs/infer-bench-20261107-1257.md), [`labs/infer-gpu-bench-20261107-1246.md`](labs/infer-gpu-bench-20261107-1246.md), [`labs/job-db-20261107-1258.md`](labs/job-db-20261107-1258.md) |
-| 소스 | `apps/train/`, `apps/infer/`, `charts/k3slab-workload/`, `infra/k8s/registry.yaml`, `infra/k8s/mysql.yaml`, `infra/k8s/mysql-schema.sql`, `scripts/` |
+| 자원 배치·검증 설계 | [`plan-week11-capacity.md`](plan-week11-capacity.md)(배치 계획 B, 노드별 메모리), [`plan-week13-verification.md`](plan-week13-verification.md)(장애 실험 설계) |
+| 이미지 | [`image-builds.md`](image-builds.md) (손으로 빌드한 이미지. Jenkins가 만든 `git-` 태그 이미지는 레지스트리와 `ci-result.json`에 기록됨) |
+| 실행 기록 (10/30~11/7) | [`labs/k3s-lab-20261030-1646.md`](labs/k3s-lab-20261030-1646.md), [`labs/train-resume-20261030-1702.md`](labs/train-resume-20261030-1702.md), [`labs/train-resume-20261030-1716.md`](labs/train-resume-20261030-1716.md), [`labs/train-resume-20261107-1253.md`](labs/train-resume-20261107-1253.md), [`labs/infer-bench-20261030-1720.md`](labs/infer-bench-20261030-1720.md), [`labs/infer-bench-20261107-1257.md`](labs/infer-bench-20261107-1257.md), [`labs/infer-gpu-bench-20261107-1246.md`](labs/infer-gpu-bench-20261107-1246.md), [`labs/job-db-20261107-1258.md`](labs/job-db-20261107-1258.md) |
+| 실행 기록 (클러스터 DNS) | [`labs/dns-localdomain-20261122-1625.md`](labs/dns-localdomain-20261122-1625.md) |
+| 실행 기록 (Jenkins) | 최종 [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md), 클러스터 없이 한 검증 [`labs/jenkins-offline-20261121-1300.md`](labs/jenkins-offline-20261121-1300.md), 시행 기록 [`labs/jenkins-ci-20261122-1634.md`](labs/jenkins-ci-20261122-1634.md), [`1647`](labs/jenkins-ci-20261122-1647.md), [`1653`](labs/jenkins-ci-20261122-1653.md), [`1655`](labs/jenkins-ci-20261122-1655.md) |
+| 실행 기록 (Argo CD, 연결) | [`labs/argocd-20261122-1612.md`](labs/argocd-20261122-1612.md), [`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md), 캡처 [`labs/cicd-e2e-20261122-dashboard-infer.png`](labs/cicd-e2e-20261122-dashboard-infer.png) |
+| 실행 기록 (모니터링) | 최종 [`labs/monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md), 시행 기록 [`labs/monitoring-20261122-1612.md`](labs/monitoring-20261122-1612.md), [`1627`](labs/monitoring-20261122-1627.md), [`1634`](labs/monitoring-20261122-1634.md), [`1641`](labs/monitoring-20261122-1641.md), [`1649`](labs/monitoring-20261122-1649.md), 캡처 `labs/monitoring-20261122-dashboard-{infer,nodes,training}.png` |
+| 실행 기록 (장애 실험) | 요약 [`labs/fault-week13-summary-20261122.md`](labs/fault-week13-summary-20261122.md), [`labs/fault-inspect-20261122-1940.md`](labs/fault-inspect-20261122-1940.md), [`labs/fault-overload-20261122-1943.md`](labs/fault-overload-20261122-1943.md), [`labs/fault-bad-deploy-20261122-2038.md`](labs/fault-bad-deploy-20261122-2038.md), [`labs/fault-infer-kill-20261122-2041.md`](labs/fault-infer-kill-20261122-2041.md) |
+| 구성요소 설명 | [`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md), [`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md), [`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md) |
+| 소스 | `apps/train/`, `apps/infer/`, `charts/k3slab-workload/`, `Jenkinsfile`, `tests/`, `infra/k8s/registry.yaml`, `infra/k8s/mysql.yaml`, `infra/k8s/mysql-schema.sql`, `infra/k8s/jenkins/`, `infra/k8s/argocd/`, `infra/k8s/monitoring/`, `infra/k8s/coredns-custom.yaml`, `scripts/` (`jenkins-*.sh`, `argocd-*.sh`, `cicd-*.sh`, `monitoring-*.sh`, `fault-test.sh`, `capacity-report.sh`) |
 | 제안서 | 연구제안서(슬라이드 3~16번), 9주차 진행보고 |
