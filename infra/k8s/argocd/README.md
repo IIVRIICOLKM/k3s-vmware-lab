@@ -17,7 +17,7 @@ Git에 적힌 배포 상태(Helm 차트 + values)를 Argo CD가 클러스터와 
 | `application-infer.yaml` | AppProject `k3slab`과 Application `infer` |
 | `../../../charts/k3slab-workload/values-infer-argocd.yaml` | Argo CD가 읽는 배포 값. **Jenkins가 만든 이미지 태그는 여기에 넣는다**(7절) |
 | `../../../scripts/argocd-deploy.sh` | 설치·Application 적용·정리 |
-| `../../../scripts/argocd-source.sh` | Git 저장소 준비, 작업 폴더 → Git 반영, 커밋·되돌리기 |
+| `../../../scripts/argocd-source.sh` | Git 저장소 준비, 작업 폴더 → Git 반영, 커밋·되돌리기, (Jenkins 연결) `ci-init`·`tree`·`log`·`show` |
 | `../../../scripts/argocd-test.sh` | sync·self-heal·새 리비전·롤백 시험과 보고서 |
 
 설치 이미지는 모두 버전이 고정돼 있다: `quay.io/argoproj/argocd:v3.6.2`, `public.ecr.aws/docker/library/redis:8.10.1-alpine`
@@ -122,10 +122,18 @@ GPU 한 장 때문에 생기는 일: 차트가 GPU 파드에는 `maxSurge: 0`(�
 | rollback | `argocd app rollback`(자동 동기화를 잠시 끔): 22초 만에 이전 값(`MAX_BATCH=8`)의 새 파드. Git은 그대로라 OutOfSync로 표시됨. 이어서 Git revert 커밋으로 Git과 다시 맞추고 자동 동기화를 켬(파드는 다시 만들어지지 않음) |
 | 정리 | Application 삭제로 추론 파드 0개, gpu-host GPU 할당 0 |
 
-참고: `repoURL`이 점 4개짜리 긴 서비스 이름이라 클러스터 DNS 검색 도메인 문제(플랫폼 세션이 고치는 중)로 첫 sync와 새 리비전 시간에 약 10초 지연이 들어 있을 수 있다.
-고친 뒤 다시 잰다. 매니페스트는 바꾸지 않았다.
+참고: `repoURL`이 점 4개짜리 긴 서비스 이름이라 클러스터 DNS 검색 도메인 문제로 첫 sync와 새 리비전 시간에 약 10초 지연이 들어 있을 수 있다고 적었다.
+**DNS 수정 뒤 다시 쟀다** (CICD_연결 시험, `docs/labs/cicd-e2e-20261122-2141.md` 6절, 각각 한 번 잰 값): 처음 sync(Application 생성 → Synced + Healthy, 이미지가 노드에 있을 때)는 21초 → **3.9초**.
+새 리비전(값 커밋 → 새 파드 Ready)은 55초 → 성공 경로 25.7초, 되돌림 경로 9.5초. 새 리비전 쪽에는 Argo CD의 30초 확인 주기에서 오는 0~30초의 우연이 들어 있어서 전부를 DNS 탓으로 돌릴 수는 없다. 매니페스트는 바꾸지 않았다.
 
 ## 7. "CICD_연결": Jenkins가 만든 이미지 태그를 넣는 곳
+
+> 연결은 끝났다. Jenkins의 배포 값 단계가 아래 `image.tag` 한 줄을 새 태그로 커밋한다(`scripts/cicd-set-tag.sh`). 전체 흐름·결정·시험 결과는
+> `infra/k8s/jenkins/README.md` "코드 변경에서 배포까지"와 `docs/labs/cicd-e2e-*.md`에 있다. 아래는 이 파일 쪽에서 알아 둘 것이다.
+> - 이 파일의 `image.tag`는 이제 **CI가 쓰는 값**이다. 사람이 `scripts/argocd-source.sh push`로 `charts/` 전체를 올리면 작업 폴더의 옛 태그가 CI가 넣은 태그를 되돌린다.
+>   CI가 돌기 시작한 뒤에는 `push` 대신 `tree <폴더> <메시지> <경로>... --keep charts/k3slab-workload/values-infer-argocd.yaml`을 쓴다(그 파일만 저장소 것을 그대로 둔다).
+> - 이 파일만 바뀐 커밋은 Jenkins가 폴링에서 제외한다(그래서 태그 커밋이 다시 빌드를 부르지 않는다). 사람이 이 파일을 고쳐도(예: `replicas: 0`으로 GPU 놓기) 빌드는 돌지 않는다.
+> - Jenkins용 Gitea 계정은 `scripts/argocd-source.sh ci-init`이 만든다(관리자가 아닌 제한된 계정 `k3slab-ci`, 이 저장소 write 협력자, 토큰 범위 `write:repository`).
 
 - **파일**: `charts/k3slab-workload/values-infer-argocd.yaml`
 - **키**: `image.tag` (파일 안에서 `image:` 아래 `  tag: …` 한 줄. 이 줄이 파일에서 `tag:`로 시작하는 유일한 줄이다)
@@ -160,7 +168,7 @@ Service와 Deployment 두 객체만 만든다(프로젝트 허용 목록과 같�
 
 ## 9. 알려진 한계와 아직 확인하지 못한 것
 
-- 시험은 한 번만 돌렸다(PASS 23). 시간은 모두 한 번 잰 값이고, 메모리는 최대값이 아니다. 위 DNS 지연이 고쳐지면 sync·새 리비전 시간을 다시 잰다.
+- 시험은 한 번만 돌렸다(PASS 23). 시간은 모두 한 번 잰 값이고, 메모리는 최대값이 아니다. DNS 수정 뒤의 sync·새 리비전 시간은 CICD_연결 시험에서 다시 쟀다(6-1절 아래).
 - `argocd app rollback`은 서버 파드 안에서 `argocd` CLI(`login --plaintext`, 설정 파일은 `/tmp`)로 실행한다. 동작을 확인했다.
 - ApplicationSet 컨트롤러는 replicas 0이 아니라 kustomize 삭제 패치로 **아예 뺐다**(dex, notifications와 함께). 설치 파일의 객체가 60개에서 39개(네임스페이스 1개 포함)로, 파드가 7개에서 4개로 줄었다.
   빠진 구성요소의 메모리는 직접 띄워 보지 않아 측정하지 않았다. ApplicationSet CRD 3개 중 하나는 남아 있지만 컨트롤러가 없어서 ApplicationSet은 동작하지 않는다.

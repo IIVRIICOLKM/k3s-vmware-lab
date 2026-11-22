@@ -62,7 +62,23 @@ BIN="$WORK/k3slab-infer"
 [[ -x "$BIN" ]] || fail "make finished but $BIN is missing"
 log "built $(basename "$BIN") ($(stat -c %s "$BIN") bytes), compiler warnings: $(grep -c 'warning:' "$WORK/build.log" || true)"
 
-# --- 4) 실행 검사 ---
+# --- 4) 단위 시험: /metrics 코드 (지연 히스토그램) ---
+# tests/infer는 이미지 빌드 폴더(apps/infer) 밖에 있다. 소스는 위에서 복사한 임시 폴더의 것을 쓴다(빌드한 것과 같은 코드).
+#   httplib.h가 필요 없는 파일만 컴파일한다(main.cpp·worker.cpp는 넣지 않는다). 프레임워크 없이 CHECK 매크로로 검사한다.
+TEST_SRC="$REPO_ROOT/tests/infer/test_metrics.cpp"
+[[ -f "$TEST_SRC" ]] || fail "$TEST_SRC not found"
+g++ -std=c++20 -O1 -Wall -Wextra -I "$WORK" "$TEST_SRC" "$WORK/metrics.cpp" "$WORK/config.cpp" "$WORK/util.cpp" -pthread \
+  -o "$WORK/test_metrics" >"$WORK/test-build.log" 2>&1 || {
+  tail -30 "$WORK/test-build.log" >&2
+  fail "tests/infer/test_metrics.cpp does not compile"
+}
+"$WORK/test_metrics" >"$WORK/test-run.log" 2>&1 || {
+  cat "$WORK/test-run.log" >&2
+  fail "metrics unit test failed (tests/infer/test_metrics.cpp)"
+}
+log "metrics unit test: $(tail -1 "$WORK/test-run.log")"
+
+# --- 5) 실행 검사 ---
 # le32 숫자 : 부호 없는 32비트 정수를 little-endian 4바이트로 출력 (K3SM 형식)
 #   먼저 "\x0a" 같은 글자를 만들고 %b로 실제 바이트로 바꾼다 (printf 서식에 변수를 직접 넣지 않으려는 방식)
 le32() { printf '%b' "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x' $(($1 & 255)) $((($1 >> 8) & 255)) $((($1 >> 16) & 255)) $((($1 >> 24) & 255)))"; }
@@ -115,6 +131,12 @@ grep -q 'k3slab_infer_info{device="cpu"' <<<"$metrics" || fail "/metrics has no 
 grep -q 'k3slab_infer_requests_total{result="ok"} 1$' <<<"$metrics" || fail "/metrics should count 1 ok request"
 grep -q 'k3slab_infer_requests_total{result="bad_request"} 1$' <<<"$metrics" || fail "/metrics should count 1 bad request"
 log "GET /metrics: device=cpu, ok=1, bad_request=1"
+# 지연 히스토그램: 정상 요청 1건이 버킷·합계·개수에 들어갔는지 (le="+Inf"와 _count가 같고 1이어야 한다. 경계값 시험은 위 단위 시험이 한다)
+grep -q '^# TYPE k3slab_infer_request_seconds histogram$' <<<"$metrics" || fail "/metrics should declare k3slab_infer_request_seconds as a histogram"
+grep -q '^k3slab_infer_request_seconds_bucket{le="+Inf"} 1$' <<<"$metrics" || fail "/metrics: latency bucket le=+Inf should be 1"
+grep -q '^k3slab_infer_request_seconds_count 1$' <<<"$metrics" || fail "/metrics: latency _count should be 1"
+[[ "$(grep -c '^k3slab_infer_request_seconds_bucket{le="' <<<"$metrics")" == 13 ]] || fail "/metrics should have 13 latency buckets (12 bounds + +Inf)"
+log "GET /metrics: latency histogram has 13 buckets, +Inf = _count = 1"
 # 종료: SIGTERM을 보내면 정상 종료(코드 0)해야 한다
 kill -TERM "$WORKER_PID"
 wait "$WORKER_PID" && exit_code=0 || exit_code=$?
@@ -127,4 +149,4 @@ if MODEL_PATH="$WORK/none.k3sm" PORT=$PORT DEVICE=cpu "$BIN" >"$WORK/missing.log
 fi
 grep -q 'startup failed' "$WORK/missing.log" || fail "missing model should print 'startup failed'"
 log "missing model -> refuses to start"
-log "PASS: C++ build (CUDA=0) and smoke test"
+log "PASS: C++ build (CUDA=0), metrics unit test and smoke test"

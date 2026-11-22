@@ -126,7 +126,7 @@ code=$(k -n "$NS" exec jenkins-0 -c jenkins -- curl -sS -o /dev/null -w '%{http_
 check "로그인 화면이 열린다: HTTP $code" test "$code" = 200
 code=$(k -n "$NS" exec jenkins-0 -c jenkins -- curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/api/json)
 check "로그인하지 않으면 API를 쓸 수 없다 (익명 접근 HTTP $code)" test "$code" = 403
-check "JCasC가 만든 운영 작업 k3slab-ci가 있다 (GitHub develop, 5분 폴링)" grep -q '"k3slab-ci"' <(jx '/api/json?tree=jobs%5Bname%5D')
+check "JCasC가 만든 운영 작업 k3slab-ci가 있다 (클러스터 안 Gitea main, 1분 폴링)" grep -q '"k3slab-ci"' <(jx '/api/json?tree=jobs%5Bname%5D')
 # 플러그인 로드: values.yaml의 고정 목록("이름:버전" 73개)이 모두 로드됐는지. 로드에 실패한 플러그인은 목록에서 빠진다.
 #   Declarative Pipeline이 빠지면 파이프라인이 단계 없이 SUCCESS로 끝나는 일이 있었다 (2026-11-22 첫 배포)
 plugins=$(jx '/pluginManager/api/json?depth=1&tree=plugins%5BshortName,version,active%5D')

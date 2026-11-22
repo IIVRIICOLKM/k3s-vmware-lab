@@ -74,9 +74,9 @@
 | `k3slab_infer_requests_total{result}` | counter | `ok` / `rejected`(429) / `timeout`(504) / `bad_request`(400) / `failed`(500) |
 | `k3slab_infer_batch_size` (`_bucket{le=1,2,4,8,16,+Inf}`, `_sum`, `_count`) | histogram | 배치당 요청 수 |
 | `k3slab_infer_batch_compute_seconds` (`_sum`, `_count`) | summary | 배치 계산 시간 (CPU/GPU) |
-| `k3slab_infer_request_seconds` (`_sum`, `_count`) | summary | 성공 요청의 큐 대기 + 계산 시간 |
+| `k3slab_infer_request_seconds` (`_bucket{le=0.0005 … 2,+Inf}`, `_sum`, `_count`) | histogram | 성공 요청의 큐 대기 + 계산 시간 (버킷 경계와 이유는 `apps/infer/metrics.h`) |
 
-**주의: 지연 p50/p95는 지금 구할 수 없다.** 워커가 지연의 합계와 개수만 내보내고 히스토그램 버킷은 내보내지 않는다. 대시보드는 평균 지연을 보여 주고, p50/p95 패널은 `k3slab_infer_request_seconds_bucket`이 생기면 값이 나오게 미리 만들어 두었다(지금은 "No data"). 워커에 버킷을 더하는 일은 `apps/infer/metrics.cpp`를 고치는 일이라 이 작업의 범위 밖이다. 총괄에게 보고했다.
+**지연 p50/p95**: 처음 배포했을 때(2026-11-22, 이 README의 시험 결과)는 워커가 지연의 합계와 개수만 내보내서 p50/p95 패널이 "No data"였다. 같은 날 CICD_연결이 워커에 히스토그램 버킷을 더해 Jenkins → Argo CD로 배포했고, 그 뒤 패널에 값이 나온다(`docs/labs/cicd-e2e-20261122-2141.md` 2-2절: p50 0.25 ms, p95 0.475 ms, 1회). 이 두 값은 첫 버킷(0.5 ms) 안을 보간한 값이라 작은 모델에서는 거칠다.
 
 ## GPU: dcgm-exporter
 
@@ -167,7 +167,7 @@ scripts/monitoring-deploy.sh remove             # 네임스페이스(PVC 포함)
 
 ## 알려진 한계
 
-- 지연 p50/p95 없음(위). 평균 지연만 나온다.
+- 지연 p50/p95는 히스토그램 버킷으로 계산한 근삿값이다. 첫 버킷이 0.5 ms라 그보다 빠른 요청의 분포는 구분하지 못한다(위).
 - 큐 길이는 5초 간격으로 읽는 순간값이라 몇 초짜리 포화를 놓친다(보고서 9.3절 6). 429 비율과 함께 본다.
 - 파드 DNS: Grafana 데이터소스는 짧은 서비스 이름을 쓴다(`datasources.yaml` 머리 주석). 플랫폼_클러스터가 `localdomain` 문제를 고쳤다고 하지만 이 작업에서 다시 재지는 않았다.
 - gpu-host는 사용자의 데스크톱이기도 해서 GPU가 쉬는 동안에도 사용률이 흔들린다(이 PC에서 9~41%를 봤다). 그래서 `monitoring-test.sh --with-gpu`는 "부하 중 평균 > 부하 전·후 쉬는 구간의 최댓값"으로 판정한다. 부하 후 값이 이 범위 안이면 FAIL로 남는다.

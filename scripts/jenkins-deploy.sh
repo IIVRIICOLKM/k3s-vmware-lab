@@ -13,7 +13,10 @@
 #      ~/.config/k3s-vmware-lab/secrets/jenkins.env(권한 600)에 같이 둔다. 둘 중 하나만 있으면 있는 쪽으로 다른 쪽을 채운다.
 #      둘 다 있는데 값이 다르면 아무것도 덮어쓰지 않고 중단한다. 비밀번호는 화면에 출력하지 않는다.
 #   4) helm upgrade --install로 올리고 컨트롤러 파드가 Ready가 될 때까지 기다린다 (첫 시작은 플러그인 73개를 받느라 약 10분: 2026-11-22 실측).
-#   5) 확인: 로그인 화면(200), JCasC가 만든 운영 작업 k3slab-ci, 파드 자원. 배포 전 worker-cpu-1 메모리를 한 번 기록해 둔다
+#   4-1) 코드와 배포 값의 출처는 클러스터 안 Gitea다 (CICD_연결). 컨트롤러는 Secret ci/gitea-ci(Gitea 계정 k3slab-ci의 토큰)를 마운트하므로
+#      이 Secret이 먼저 있어야 한다: scripts/argocd-source.sh ci-init (없으면 배포 전에 멈춘다. Secret 없이 helm을 돌리면 파드가 안 뜬다).
+#      JCasC가 이 토큰으로 Jenkins 자격증명 gitea-ci와 운영 작업 k3slab-ci(Gitea main을 1분마다 폴링)를 만든다.
+#   5) 확인: 로그인 화면(200), JCasC가 만든 운영 작업 k3slab-ci와 자격증명 gitea-ci, 파드 자원. 배포 전 worker-cpu-1 메모리를 한 번 기록해 둔다
 #      (~/.local/state/k3s-vmware-lab/jenkins-memory-before.txt, scripts/jenkins-ci-test.sh가 변화를 계산한다).
 #   --render: 클러스터 없이 하는 점검. 차트 해시 확인, helm lint, helm template, 렌더링 결과의 핵심 값(이미지 태그, 노드 배치, 자원) 확인.
 #   Jenkins 화면: kubectl -n ci port-forward svc/jenkins 8080:8080 → http://127.0.0.1:8080 (계정 admin, 비밀번호는 jenkins.env)
@@ -85,11 +88,15 @@ if [[ "$RENDER_ONLY" == true ]]; then
   grep -q 'k3slab.io/role: platform' "$out" || die "controller is not placed on the platform node"
   grep -q 'storage: "5Gi"' "$out" || die "PVC size is not 5Gi"
   ! grep -q 'k8s-sidecar' "$out" || die "the config-reload sidecar should be off"
+  # Gitea 토큰: Secret gitea-ci의 키 token이 gitea-ci-token 파일로 마운트되고, JCasC가 그 값으로 자격증명 gitea-ci와 Gitea를 보는 작업을 만든다
+  grep -q 'path: gitea-ci-token' "$out" || die "the Secret gitea-ci (key token) is not mounted as gitea-ci-token"
+  grep -q 'gitea.k3slab-system.svc.cluster.local:3000/k3slab/k3s-vmware-lab.git' "$out" || die "the job k3slab-ci does not read the in-cluster Gitea"
+  ! grep -q 'github.com/IIVRIICOLKM' "$out" || die "the job k3slab-ci still reads GitHub"
   ! grep -Eq 'image: .*:(latest)"?$' "$out" || die "an image uses the latest tag"
   # 모든 매니페스트가 YAML로 읽히는지 (ci-base.yaml 포함)
   python3 -I -c 'import sys, yaml; [d for f in sys.argv[1:] for d in yaml.safe_load_all(open(f))]' "$out" "$MANIFESTS/ci-base.yaml" ||
     die "a manifest is not valid YAML"
-  log "PASS: helm lint and helm template OK; controller 2.580.2-jdk25 on the platform node, PVC 5Gi, no sidecar, no latest tags"
+  log "PASS: helm lint and helm template OK; controller 2.580.2-jdk25 on the platform node, PVC 5Gi, no sidecar, no latest tags, Gitea token mounted"
   exit 0
 fi
 
@@ -107,6 +114,12 @@ fi
 # --- 5) 네임스페이스와 에이전트 권한 ---
 k apply -f "$MANIFESTS/ci-base.yaml" >/dev/null
 log "namespace $NS and agent permissions applied"
+
+# --- 5-1) Gitea 토큰 Secret (CICD_연결) ---
+# 컨트롤러가 이 Secret을 마운트한다(values.yaml의 additionalExistingSecrets). 없으면 파드가 ContainerCreating에서 멈추므로 여기서 먼저 확인한다.
+k -n "$NS" get secret gitea-ci >/dev/null 2>&1 ||
+  die "Secret $NS/gitea-ci is missing (the Jenkins job reads the in-cluster Gitea with it). Run: scripts/argocd-source.sh ci-init"
+log "Secret $NS/gitea-ci exists (token of the Gitea user k3slab-ci)"
 
 # --- 6) 관리자 비밀번호 (처음 한 번만 생성) ---
 # 클러스터 Secret과 로컬 파일을 맞춘다. MySQL과 달리 Jenkins는 시작할 때마다 Secret을 읽어 계정을 만들기 때문에
@@ -161,6 +174,10 @@ log "plugins: all $(wc -l <<<"$expected") pinned plugins are loaded"
 jobs=$(k -n "$NS" exec jenkins-0 -c jenkins -- sh -c 'curl -sS -u "$(cat /run/secrets/additional/chart-admin-username):$(cat /run/secrets/additional/chart-admin-password)" "http://localhost:8080/api/json?tree=jobs%5Bname%5D"')
 [[ "$jobs" == *'"k3slab-ci"'* ]] || die "JCasC did not create the job k3slab-ci: $jobs"
 log "job k3slab-ci exists (created by JCasC)"
+# Gitea 자격증명 gitea-ci (JCasC가 Secret의 토큰으로 만든다). 이 id로 작업이 코드를 받고 Jenkinsfile이 태그 커밋을 올린다.
+cred=$(k -n "$NS" exec jenkins-0 -c jenkins -- sh -c 'curl -sS -o /dev/null -w "%{http_code}" -u "$(cat /run/secrets/additional/chart-admin-username):$(cat /run/secrets/additional/chart-admin-password)" "http://localhost:8080/credentials/store/system/domain/_/credential/gitea-ci/api/json"')
+[[ "$cred" == 200 ]] || die "Jenkins credential gitea-ci does not exist (HTTP $cred); check the Secret $NS/gitea-ci and kubectl -n $NS logs jenkins-0 -c jenkins | grep -i casc"
+log "credential gitea-ci exists (loaded from Secret $NS/gitea-ci)"
 k -n "$NS" get pods -o wide
 k top pod -n "$NS" 2>/dev/null || true
 log "done. Jenkins UI: kubectl -n $NS port-forward svc/jenkins 8080:8080  (user admin, password in ${LOCAL_COPY/#$HOME/~})"

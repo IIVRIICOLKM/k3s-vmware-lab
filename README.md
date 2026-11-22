@@ -46,6 +46,7 @@
 - [x] 작업 상태 DB와 같은 작업 번호 중복 실행 방지
 - [x] Jenkins CI: 코드 검사(C++·Python·쉘·Helm) 뒤 Kaniko 이미지 빌드, 검사가 실패하면 이미지를 만들지 않음
 - [x] Argo CD GitOps 배포: Git 값이 바뀌면 자동 sync, 손으로 바꾼 것은 되돌림(self-heal), rollback
+- [x] 코드 변경에서 배포까지 자동 연결: 클러스터 안 Git 서버(Gitea)에 커밋하면 Jenkins가 검사·빌드하고 새 이미지 태그를 커밋, Argo CD가 배포 (검사가 실패하면 배포하지 않음)
 - [x] Prometheus·Grafana 모니터링: 노드·파드·GPU·추론 큐 지표와 대시보드 3개
 
 ### 기술 스택
@@ -155,12 +156,14 @@ scripts/job.sh submit infer exp-001-svc --model-job exp-001
 
 ```bash
 scripts/monitoring-deploy.sh        # Prometheus, Grafana, 지표 수집기
+scripts/argocd-deploy.sh up         # Gitea와 Argo CD (추론 Application은 `app`으로 따로 적용, GPU 1장)
+scripts/argocd-source.sh ci-init    # Jenkins가 쓰는 Gitea 계정과 토큰 Secret (Jenkins보다 먼저)
 scripts/jenkins-deploy.sh           # Jenkins (ci 네임스페이스, 첫 시작은 플러그인 때문에 약 10분)
-scripts/argocd-deploy.sh up         # Gitea와 Argo CD (추론 Application은 `app`으로 따로 적용)
 ```
 
 - 화면은 클러스터 밖으로 열지 않고 `kubectl port-forward`로 봅니다. 방법과 계정은 `infra/k8s/{monitoring,jenkins,argocd}/README.md`에 있습니다.
-- 각 시험은 `scripts/monitoring-test.sh`, `scripts/jenkins-ci-test.sh`, `scripts/argocd-test.sh`이고 결과는 `docs/labs/`에 남습니다.
+- 각 시험은 `scripts/monitoring-test.sh`, `scripts/jenkins-ci-test.sh`, `scripts/argocd-test.sh`, 전체 흐름은 `scripts/cicd-e2e-test.sh`이고 결과는 `docs/labs/`에 남습니다.
+- Jenkins는 GitHub가 아니라 클러스터 안 Gitea(`k3slab/k3s-vmware-lab`의 `main`)를 1분마다 확인합니다. Gitea에 코드를 올리는 순서는 `infra/k8s/jenkins/README.md`의 "코드 변경에서 배포까지"에 있습니다.
 - 장애 실험은 `scripts/fault-test.sh list`로 목록을 보고, 실험마다 `--dry-run`으로 절차를 먼저 확인합니다.
 
 ## 프로젝트 구조
@@ -192,6 +195,6 @@ k3s-vmware-lab/
 - [x] 학습 흐름과 체크포인트
 - [x] 추론 워커 고도화 (GPU 경로)
 - [x] 작업 상태 저장소 (MySQL)
-- [ ] CI/CD
+- [x] CI/CD (코드 변경 → Jenkins 검사·이미지 → 태그 커밋 → Argo CD 배포)
 - [x] 모니터링
 - [ ] 장애 상황 검증 (과부하·잘못된 배포·추론 파드 강제 종료 완료, 설계는 [`docs/plan-week13-verification.md`](docs/plan-week13-verification.md))

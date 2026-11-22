@@ -1,14 +1,15 @@
-// Jenkinsfile - CI for k3s-vmware-lab (proposal: Jenkins build and test automation, weeks 10-12).
+// Jenkinsfile - CI for k3s-vmware-lab (proposal: Jenkins build and test automation, weeks 10-12; hand-off to Argo CD, weeks 11-13).
 //
 // When the code changes, Jenkins checks the C++ inference worker, the Python training code, the shell scripts and the Helm chart.
 // Only when all checks pass it builds the images with Kaniko, the way scripts/image-build.sh does, tagged with the commit.
+// Then it writes the new tag into the GitOps values file in the same Git repository; Argo CD deploys that commit.
 // Every stage runs in a Kubernetes agent pod (namespace ci); the commands live in scripts/jenkins-stage-*.sh so that the
 // same checks run by hand: scripts/jenkins-check.sh.
 //
 // [한국어 설명] 코드가 바뀌면 Jenkins가 아래 순서로 돈다. 단계마다 Kubernetes 에이전트 파드에서 실행된다.
 //   검사 (파드 1개: jnlp + gcc + torch 컨테이너. 앞 단계가 실패하면 뒤 단계는 건너뛴다)
-//     소스    GitHub develop 체크아웃. 시험용으로는 작업 폴더를 ConfigMap으로 받는다 (SOURCE_ID 파라미터, scripts/jenkins-run.sh)
-//     C++     apps/infer를 make CUDA=0으로 빌드하고 실행 검사          → scripts/jenkins-stage-cpp.sh
+//     소스    클러스터 안 Gitea(k3slab/k3s-vmware-lab)의 main 체크아웃. 시험용으로는 작업 폴더를 ConfigMap으로 받는다 (SOURCE_ID 파라미터, scripts/jenkins-run.sh)
+//     C++     apps/infer를 make CUDA=0으로 빌드하고 단위 시험(지연 히스토그램)과 실행 검사  → scripts/jenkins-stage-cpp.sh
 //     Python  py_compile과 tests/train 단위 시험                         → scripts/jenkins-stage-python.sh
 //     쉘      bash -n과 ShellCheck(v0.11.0 고정)                        → scripts/jenkins-stage-shell.sh
 //     Helm    helm lint와 helm template (학습 Job, 추론 Deployment)     → scripts/jenkins-stage-helm.sh
@@ -17,7 +18,11 @@
 //     태그는 덮어쓰지 않는다: git 소스는 git-<커밋 7자리>, ConfigMap 소스는 src-<소스 해시 12자리>.
 //     이미 있는 태그는 다시 빌드하지 않고 그 digest를 쓴다 (scripts/image-build.sh의 "태그는 불변" 규칙과 같다).
 //   결과 기록: ci-result.json(빌드 산출물)과 ConfigMap ci-latest(git) / ci-latest-local(ConfigMap 소스)에 태그·커밋·digest를 남긴다.
-//     Argo CD 연동은 이 값을 읽는다 (infra/k8s/jenkins/README.md "결과 전달").
+//   배포 값 (git 소스이고 이미지가 모두 만들어졌을 때만. 시험용 src- 태그는 배포하지 않는다)
+//     같은 Gitea 저장소의 charts/k3slab-workload/values-infer-argocd.yaml image.tag를 새 태그로 커밋한다 → Argo CD가 30초 안팎에 보고 배포한다.
+//     이 커밋이 다시 빌드를 만들지 않게 소스 단계가 막는다: HEAD가 CI 봇 커밋이거나 [skip ci]가 있거나 그 파일만 바뀐 커밋이면 건너뛴다(NOT_BUILT).
+//     (Jenkins의 폴링 제외 확장은 폴링할 때 워크스페이스가 필요한데 에이전트 파드는 빌드 뒤에 사라져서 쓸 수 없다.)
+//     자세히: infra/k8s/jenkins/README.md "코드 변경에서 배포까지"
 
 // ---------------------------------------------------------------------------------------------------------------
 // 도우미 함수 (파이프라인 밖: 파드 정의와 이미지 목록)
@@ -152,6 +157,20 @@ spec:''' + agentCommon() + '''
 '''
 }
 
+// deployPod : 배포 값 단계 파드. jnlp 컨테이너 하나뿐이다 (git, bash, sed만 쓴다: scripts/cicd-set-tag.sh).
+//   요청 CPU 50m / 메모리 128Mi. 앞 단계 파드는 이미 끝났으므로 에이전트 파드는 여전히 한 번에 하나다.
+def deployPod() {
+  return '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    k3slab.io/ci: deploy
+spec:''' + agentCommon() + '''
+  containers:''' + jnlpContainer('') + '''
+'''
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // 파이프라인
 // ---------------------------------------------------------------------------------------------------------------
@@ -168,10 +187,12 @@ pipeline {
   }
 
   parameters {
-    // 비우면 GitHub(develop)에서 받는다. 값이 있으면 scripts/jenkins-run.sh가 만든 ConfigMap ci-source-<값>의 작업 폴더를 쓴다.
+    // 비우면 Gitea(main)에서 받는다. 값이 있으면 scripts/jenkins-run.sh가 만든 ConfigMap ci-source-<값>의 작업 폴더를 쓴다.
     string(name: 'SOURCE_ID', defaultValue: '', description: 'Empty: check out from git. 12 hex chars: use the working-tree snapshot in ConfigMap ci-source-<id> (scripts/jenkins-run.sh)')
     booleanParam(name: 'BUILD_IMAGES', defaultValue: true, description: 'Build and push the images when every check passes')
     string(name: 'IMAGES', defaultValue: 'infer-worker,train-worker', description: 'Images to build, comma separated (infer-worker, train-worker)')
+    booleanParam(name: 'FORCE_BUILD', defaultValue: false, description: 'Build even when the HEAD commit is a CI bot commit, has [skip ci], or changes only the GitOps values file')
+    booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Commit the new infer-worker tag to the GitOps values file when the images are built (git source only; Argo CD then deploys it)')
   }
 
   stages {
@@ -204,20 +225,37 @@ pipeline {
                   env.CI_COMMIT = 'none'
                   env.IMAGE_TAG = "src-${params.SOURCE_ID}"
                 } else {
-                  // 운영: GitHub develop (저장소는 공개라 인증이 필요 없다). 작업 정의의 SCM 설정을 그대로 쓴다.
-                  checkout scm
+                  // 운영: 클러스터 안 Gitea main (비공개 저장소, 자격증명 gitea-ci는 JCasC가 넣는다). 작업 정의의 SCM 설정을 그대로 쓴다.
+                  def scmVars = checkout scm
                   def commit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
                   env.CI_SOURCE = 'git'
                   env.CI_COMMIT = commit
+                  env.CI_REPO_URL = scmVars.GIT_URL   // 배포 값 단계가 같은 저장소에 태그 커밋을 올린다
+                  // 고리 막기: 태그 커밋(작성자 k3slab ci)이 폴링으로 다시 빌드를 만들지 않게, 이런 커밋은 건너뛴다. 사람이 시작해도 FORCE_BUILD=false면 같다.
+                  //   1) 작성자가 CI 봇   2) 메시지에 [skip ci]   3) 그 커밋이 배포 값 파일 하나만 바꿈 (예: 사람이 replicas를 고친 커밋)
+                  def author = sh(returnStdout: true, script: 'git log -1 --format=%an').trim()
+                  def message = sh(returnStdout: true, script: 'git log -1 --format=%B').trim()
+                  def files = sh(returnStdout: true, script: 'git diff-tree --no-commit-id --name-only -r HEAD').trim()
+                  def why = ''
+                  if (author == 'k3slab ci') { why = 'the commit is a CI bot commit' }
+                  else if (message.contains('[skip ci]')) { why = 'the commit message has [skip ci]' }
+                  else if (files == 'charts/k3slab-workload/values-infer-argocd.yaml') { why = 'the commit changes only the GitOps values file' }
+                  if (why && !params.FORCE_BUILD) {
+                    env.CI_SKIP = 'true'
+                    env.CI_SKIP_WHY = why
+                    currentBuild.result = 'NOT_BUILT'
+                    echo "CI-SKIP: ${why}; nothing is built or deployed (FORCE_BUILD=true builds it anyway)"
+                  }
                   env.IMAGE_TAG = "git-${commit.take(7)}"
                 }
-                currentBuild.description = env.IMAGE_TAG
+                currentBuild.description = env.CI_SKIP == 'true' ? "skipped: ${env.CI_SKIP_WHY}" : env.IMAGE_TAG
                 echo "source=${env.CI_SOURCE} commit=${env.CI_COMMIT} image tag=${env.IMAGE_TAG}"
               }
             }
           }
         }
         stage('C++') {
+          when { expression { return env.CI_SKIP != 'true' } }
           steps {
             timeout(time: 15, unit: 'MINUTES') {
               container('gcc') { sh 'bash scripts/jenkins-stage-cpp.sh' }
@@ -225,6 +263,7 @@ pipeline {
           }
         }
         stage('Python') {
+          when { expression { return env.CI_SKIP != 'true' } }
           steps {
             timeout(time: 15, unit: 'MINUTES') {
               container('torch') { sh 'bash scripts/jenkins-stage-python.sh' }
@@ -232,6 +271,7 @@ pipeline {
           }
         }
         stage('쉘') {
+          when { expression { return env.CI_SKIP != 'true' } }
           steps {
             timeout(time: 5, unit: 'MINUTES') {
               container('gcc') { sh 'bash scripts/jenkins-stage-shell.sh' }
@@ -239,6 +279,7 @@ pipeline {
           }
         }
         stage('Helm') {
+          when { expression { return env.CI_SKIP != 'true' } }
           steps {
             timeout(time: 5, unit: 'MINUTES') {
               container('gcc') { sh 'bash scripts/jenkins-stage-helm.sh "$IMAGE_TAG"' }
@@ -249,7 +290,7 @@ pipeline {
       // 검사가 모두 통과했을 때만 이미지 빌드 폴더를 보관해 다음 단계(다른 파드)로 넘긴다
       post {
         success {
-          stash name: 'src', includes: 'apps/infer/**,apps/train/**,scripts/jenkins-registry.sh,scripts/jenkins-record.sh'
+          stash name: 'src', includes: 'apps/infer/**,apps/train/**,scripts/jenkins-registry.sh,scripts/jenkins-record.sh,scripts/cicd-set-tag.sh'
         }
       }
     }
@@ -261,7 +302,12 @@ pipeline {
     //   파드는 항상 하나만 떠 있다 (자원 승인안 그대로). 결과 기록은 마지막 이미지의 파드에서 한다.
     stage('이미지') {
       // 이 단계는 에이전트를 직접 두지 않는다 (아래에서 이미지마다 podTemplate/node로 파드를 만든다)
-      when { expression { return params.BUILD_IMAGES } }
+      when {
+        allOf {
+          expression { return params.BUILD_IMAGES }
+          expression { return env.CI_SKIP != 'true' }
+        }
+      }
       options { timeout(time: 60, unit: 'MINUTES') }
       steps {
         script {
@@ -319,6 +365,7 @@ pipeline {
                   def imageArgs = ''
                   for (e in digests) { imageArgs += " --image ${e.key}=${e.value}" }
                   def configmap = env.CI_SOURCE == 'git' ? 'ci-latest' : 'ci-latest-local'
+                  env.INFER_DIGEST = digests['infer-worker'] ?: ''   // 배포 값 단계가 커밋 메시지에 적는다 (infer-worker를 만들지 않았으면 비어 있다)
                   container('tools') {
                     sh "bash scripts/jenkins-record.sh --tag ${tag} --commit ${env.CI_COMMIT} --source ${env.CI_SOURCE} --build ${env.BUILD_NUMBER} --build-url ${env.BUILD_URL} --out ci-result.json --configmap ${configmap}${imageArgs}"
                   }
@@ -326,6 +373,43 @@ pipeline {
                 }
               }
             }
+          }
+        }
+      }
+    }
+
+    // ===== 배포 값: Gitea의 GitOps 값 파일에 새 태그를 커밋한다. 이미지 단계가 끝났고 소스가 git일 때만 =====
+    //   beforeAgent: 조건이 거짓이면 파드를 만들지도 않는다 (시험용 ConfigMap 소스, DEPLOY=false, infer-worker를 만들지 않은 빌드).
+    //   인증: Jenkins 자격증명 gitea-ci (이 저장소에만 쓰기 권한이 있는 계정 k3slab-ci의 토큰). 값은 로그에서 가려진다.
+    //   커밋 한 줄이 배포다: Argo CD가 values-infer-argocd.yaml의 새 커밋을 보고 새 파드를 띄운다. 되돌리기는 이 커밋을 revert하면 된다.
+    stage('배포 값') {
+      when {
+        beforeAgent true
+        allOf {
+          expression { return params.BUILD_IMAGES }
+          expression { return params.DEPLOY }
+          expression { return env.CI_SOURCE == 'git' }
+          expression { return env.CI_SKIP != 'true' }
+          expression { return env.INFER_DIGEST != null && env.INFER_DIGEST != '' }
+        }
+      }
+      agent {
+        kubernetes {
+          yaml deployPod()
+        }
+      }
+      options { timeout(time: 5, unit: 'MINUTES') }
+      steps {
+        unstash 'src'
+        withCredentials([usernamePassword(credentialsId: 'gitea-ci', usernameVariable: 'GITEA_USER', passwordVariable: 'GITEA_TOKEN')]) {
+          // 종료 코드 3 = 그 사이 main에 새 커밋이 올라와 태그 커밋을 만들지 않았다 (새 커밋이 자기 빌드를 받는다). 빌드는 UNSTABLE로 표시한다.
+          script {
+            def rc = sh(returnStatus: true, script: '''
+              bash scripts/cicd-set-tag.sh --repo "$CI_REPO_URL" --tag "$IMAGE_TAG" --commit "$CI_COMMIT" \
+                --digest "$INFER_DIGEST" --build "$BUILD_NUMBER" --build-url "$BUILD_URL"
+            ''')
+            if (rc == 3) { unstable('main moved during the build: no tag commit; the newer commit is built on its own') }
+            else if (rc != 0) { error("cicd-set-tag.sh failed (exit ${rc})") }
           }
         }
       }

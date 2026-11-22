@@ -100,6 +100,7 @@
   - 모니터링: `monitoring-deploy.sh`, `monitoring-test.sh` ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md))
   - Jenkins CI: `jenkins-deploy.sh`, `jenkins-run.sh`, `jenkins-ci-test.sh`, 로컬 사전 검사 `jenkins-check.sh`, 파이프라인이 부르는 `jenkins-stage-*.sh`·`jenkins-record.sh`·`jenkins-registry.sh` ([`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md))
   - Argo CD: `argocd-deploy.sh`, `argocd-source.sh`, `argocd-test.sh` ([`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md))
+  - 코드 변경에서 배포까지: `cicd-e2e-test.sh`, Jenkins가 새 태그를 배포 값에 커밋하는 `cicd-set-tag.sh`. 흐름은 Gitea 커밋 → Jenkins 폴링(1분) → 검사·Kaniko 이미지 → 태그 커밋 → Argo CD sync
 
 ## 12~13주 실행 기록
 
@@ -109,4 +110,5 @@
 | Argo CD sync·self-heal·rollback | [`labs/argocd-20261122-1612.md`](labs/argocd-20261122-1612.md) |
 | 모니터링 (최종, 앞선 시행은 같은 폴더의 `monitoring-*`) | [`labs/monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) |
 | Jenkins CI (최종, 오프라인 검사와 앞선 시행은 `jenkins-*`) | [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) |
+| 코드 변경에서 배포까지 (성공 1회, 단위 시험 실패 차단 1회, 되돌리기 1회, 지연 p50/p95) | [`labs/cicd-e2e-20261122-2141.md`](labs/cicd-e2e-20261122-2141.md) |
 | 장애 실험 첫 단계 요약 (점검, 과부하, 잘못된 배포, 추론 파드 강제 종료. 실험별 보고서는 `fault-*`) | [`labs/fault-week13-summary-20261122.md`](labs/fault-week13-summary-20261122.md) |

@@ -26,6 +26,13 @@ controller:
   #   (JCasC의 unclassified.location.url이 이 값으로 정해진다. 같은 키를 configScripts에서 또 쓰면 JCasC가 충돌 오류를 낸다)
   jenkinsUrl: "http://jenkins.ci.svc.cluster.local:8080"
 
+  # Gitea 계정 k3slab-ci의 토큰 (Secret ci/gitea-ci, 키 token). scripts/argocd-source.sh ci-init가 만든다.
+  #   컨트롤러에 /run/secrets/additional/gitea-ci-token 파일로 마운트되고, JCasC가 ${gitea-ci-token}으로 읽어 자격증명 gitea-ci를 만든다.
+  #   값은 이 파일(Git)에 없다. Secret이 없으면 컨트롤러 파드가 뜨지 않으므로 scripts/jenkins-deploy.sh가 배포 전에 확인한다.
+  additionalExistingSecrets:
+    - name: gitea-ci
+      keyName: token
+
   # 컨트롤러에서는 빌드를 돌리지 않는다 (차트 기본값 numExecutors: 0 그대로). 모든 빌드는 에이전트 파드에서.
   numExecutors: 0
 
@@ -176,27 +183,51 @@ controller:
       ci-settings: |
         jenkins:
           systemMessage: "k3s-vmware-lab CI: C++ build, Python/shell/Helm checks, then Kaniko image build. Managed as code (infra/k8s/jenkins)."
-      # 운영 작업: GitHub develop을 5분마다 확인해(폴링) 바뀌었으면 저장소 최상위 Jenkinsfile을 실행한다.
-      #   저장소는 공개라 인증이 필요 없다. 클러스터가 NAT 안에 있어 GitHub 웹훅(들어오는 연결)은 쓸 수 없어서 폴링한다.
-      #   develop에 Jenkinsfile이 올라가기 전에는 이 작업이 "Jenkinsfile을 찾을 수 없음"으로 실패한다 (시험은 k3slab-ci-local로).
+      # Gitea 자격증명: 이 저장소에만 쓰기 권한이 있는 계정 k3slab-ci의 토큰. 코드를 받을 때(읽기)와 이미지 태그 커밋을 올릴 때(쓰기) 쓴다.
+      #   Jenkinsfile의 withCredentials([usernamePassword(credentialsId: 'gitea-ci', ...)])와 작업의 git remote가 이 id를 쓴다.
+      ci-credentials: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "gitea-ci"
+                      username: "k3slab-ci"
+                      password: "${gitea-ci-token}"
+                      description: "Gitea k3slab-ci: write access to k3slab/k3s-vmware-lab only (scripts/argocd-source.sh ci-init)"
+      # 운영 작업: 클러스터 안 Gitea(k3slab/k3s-vmware-lab)의 main을 1분마다 확인해(폴링) 바뀌었으면 저장소 최상위 Jenkinsfile을 실행한다.
+      #   코드와 배포 값(GitOps)의 출처를 이 저장소 하나로 둔다: 공개 저장소(GitHub)에는 일부러 깨뜨린 시험 커밋을 올리지 않고,
+      #   클러스터에 GitHub 쓰기 자격증명을 두지 않기 위해서다. GitHub develop은 총괄이 결과를 올리는 공개 사본이다.
+      #   폴링으로 고른 이유: Gitea 웹훅은 기본 설정이 사설 주소(클러스터 서비스)로 보내는 것을 막고(Gitea [webhook] ALLOWED_HOST_LIST),
+      #   Jenkins의 /git/notifyCommit은 로그인 없이 열려 있어야 한다. 폴링은 어느 쪽도 바꾸지 않고, 비용은 분당 git ls-remote 한 번이다.
+      #   지연은 최대 약 1분(평균 30초)이다. Argo CD도 30초마다 폴링한다.
+      #   태그 커밋이 다시 빌드를 만드는 고리는 Jenkinsfile의 소스 단계가 막는다(HEAD가 CI 봇 커밋 / [skip ci] / 배포 값 파일만 바뀐 커밋이면 건너뜀, NOT_BUILT).
+      #   브랜치는 와일드카드 없이 refs/heads/main으로 적는다. git 플러그인은 단일 브랜치(와일드카드 없음)일 때만 워크스페이스 없이 git ls-remote로 폴링한다.
+      #   '*/main'으로 쓰면 폴링이 마지막 빌드가 돈 에이전트 파드의 워크스페이스를 찾다가 "ERROR: no such computer ..."와 "No changes"만 남기고
+      #   빌드를 시작하지 못한다(에이전트 파드는 빌드가 끝나면 사라진다, 2026-11-22 확인). 폴링 제외 확장(UserExclusion 등)도 워크스페이스가 필요해서 쓰지 않는다.
+      #   첫 빌드가 이미 있는 작업에서 저장소를 바꾼 경우 폴링은 기준 리비전이 없어 "No changes"다. 그때는 scripts/jenkins-run.sh --git으로 한 번 시작한다.
       ci-jobs: |
         jobs:
           - script: >
               pipelineJob('k3slab-ci') {
-                description('CI for k3s-vmware-lab: checks, then Kaniko image build. Source: GitHub develop (Jenkinsfile at the repo root).')
+                description('CI for k3s-vmware-lab: checks, Kaniko image build, then the new tag is committed for Argo CD. Source: in-cluster Gitea main (Jenkinsfile at the repo root).')
                 definition {
                   cpsScm {
                     scm {
                       git {
-                        remote { url('https://github.com/IIVRIICOLKM/k3s-vmware-lab.git') }
-                        branch('*/develop')
+                        remote {
+                          url('http://gitea.k3slab-system.svc.cluster.local:3000/k3slab/k3s-vmware-lab.git')
+                          credentials('gitea-ci')
+                        }
+                        branch('refs/heads/main')
                       }
                     }
                     scriptPath('Jenkinsfile')
                     lightweight(true)
                   }
                 }
-                triggers { scm('H/5 * * * *') }
+                triggers { scm('* * * * *') }
               }
 
 # 에이전트 파드는 Jenkinsfile 안의 파드 정의(yaml)로 만든다. 차트의 기본 에이전트 템플릿은 쓰지 않는다.

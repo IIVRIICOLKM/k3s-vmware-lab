@@ -12,6 +12,30 @@ void Metrics::observe_batch(size_t n, uint64_t compute_us) {
     if (i == kBuckets - 1 || n <= bounds[i]) batch_le[i]++;
 }
 
+void LatencyHistogram::observe(uint64_t us) {
+  // First bound that is >= us (so a value equal to a bound lands in that bucket); kBounds = above every bound (+Inf only).
+  size_t i = 0;
+  while (i < kBounds && us > kBoundsUs[i]) ++i;
+  bucket_[i]++;
+  sum_us_ += us;
+}
+
+void LatencyHistogram::render(std::string &out) const {
+  out += "# HELP k3slab_infer_request_seconds Queue+compute time of successful requests.\n";
+  out += "# TYPE k3slab_infer_request_seconds histogram\n";
+  // Cumulative `le` counts from the per-bucket counters. _count is the +Inf total of this very read, so _count and
+  // le="+Inf" always agree inside one scrape even while workers keep observing (the _sum may be a few requests ahead).
+  unsigned long long cumulative = 0;
+  for (size_t i = 0; i < kBounds; ++i) {
+    cumulative += bucket_[i].load();
+    out += fmt("k3slab_infer_request_seconds_bucket{le=\"%g\"} %llu\n", static_cast<double>(kBoundsUs[i]) / 1e6, cumulative);
+  }
+  cumulative += bucket_[kBounds].load();
+  out += fmt("k3slab_infer_request_seconds_bucket{le=\"+Inf\"} %llu\n", cumulative);
+  out += fmt("k3slab_infer_request_seconds_sum %.6f\n", static_cast<double>(sum_us_.load()) / 1e6);
+  out += fmt("k3slab_infer_request_seconds_count %llu\n", cumulative);
+}
+
 std::string Metrics::render(const Config &cfg, size_t queue_len, const std::string &device,
                             const std::string &gpu) const {
   auto u = [](const std::atomic<uint64_t> &v) { return static_cast<unsigned long long>(v.load()); };
@@ -41,9 +65,6 @@ std::string Metrics::render(const Config &cfg, size_t queue_len, const std::stri
   m += "# TYPE k3slab_infer_batch_compute_seconds summary\n";
   m += fmt("k3slab_infer_batch_compute_seconds_sum %.6f\n", compute_us_sum.load() / 1e6);
   m += fmt("k3slab_infer_batch_compute_seconds_count %llu\n", u(batches));
-  m += "# HELP k3slab_infer_request_seconds Queue+compute time of successful requests.\n";
-  m += "# TYPE k3slab_infer_request_seconds summary\n";
-  m += fmt("k3slab_infer_request_seconds_sum %.6f\n", latency_us_sum.load() / 1e6);
-  m += fmt("k3slab_infer_request_seconds_count %llu\n", u(ok));
+  latency_us_sum.render(m);  // k3slab_infer_request_seconds: _bucket{le}, _sum, _count (was a summary with _sum and _count only)
   return m;
 }

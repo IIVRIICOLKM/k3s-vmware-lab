@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Runs the CI pipeline (Jenkinsfile) on the cluster's Jenkins and waits for the result.
 # Default: ships this working tree to Jenkins as a ConfigMap snapshot (ci-source-<hash>) and runs the test job k3slab-ci-local
-# with the same Jenkinsfile; --git runs the production job k3slab-ci instead (GitHub develop). The test source mode exists because
-# the weeks 9-11 work is not on GitHub develop yet and pushing is not allowed.
+# with the same Jenkinsfile; --git runs the production job k3slab-ci instead (main of the in-cluster Gitea; the job also polls it every minute
+# and, when the checks pass, commits the new image tag for Argo CD). The snapshot mode tests a working tree before it is pushed anywhere and
+# never deploys (its tags are src-<hash>).
 # Usage: scripts/jenkins-run.sh [--source-dir DIR] [--images LIST] [--no-images] [--out FILE] [--no-wait]   (snapshot of DIR, default: this repo)
-#        scripts/jenkins-run.sh --git [--images LIST] [--no-images] [--out FILE] [--no-wait]               (GitHub develop, job k3slab-ci)
+#        scripts/jenkins-run.sh --git [--images LIST] [--no-images] [--out FILE] [--no-wait]               (Gitea main, job k3slab-ci)
 #
 # [한국어 설명] Jenkins에서 파이프라인(저장소 최상위 Jenkinsfile)을 한 번 돌리고 끝날 때까지 기다린다.
 #   소스를 넣는 방법 두 가지:
@@ -12,7 +13,8 @@
 #               push하기 전의 작업 폴더 상태를 그대로 시험하려고 만든 방법이다 (scripts/image-build.sh가 빌드 폴더를
 #               ConfigMap으로 넘기는 것과 같은 생각). 작업 정의는 이 폴더의 Jenkinsfile 내용을 그대로 넣어 만든다 → 시험하는 파이프라인 = 운영 파이프라인.
 #               스냅샷 = git이 아는 파일(추적 + 새 파일 중 .gitignore에 걸리지 않는 것). 비밀 파일(*.env 등)은 .gitignore라서 들어가지 않는다.
-#     --git     운영 작업 k3slab-ci를 돌린다 (GitHub develop을 체크아웃). 작업은 Helm 설치 때 JCasC로 만들어져 있다.
+#     --git     운영 작업 k3slab-ci를 돌린다 (클러스터 안 Gitea main을 체크아웃). 작업은 Helm 설치 때 JCasC로 만들어져 있다.
+#               이 작업은 1분마다 Gitea를 폴링하고, 검사와 이미지가 모두 성공하면 새 태그를 배포 값에 커밋한다(Argo CD가 배포). 수동 실행도 마찬가지다.
 #   --source-dir DIR  다른 폴더의 스냅샷을 쓴다 (실패 시나리오: 일부러 고장 낸 임시 사본). DIR이 git 저장소가 아니면 파일 전체에서 .env·.git 등을 뺀다.
 #   --images LIST     빌드할 이미지 (쉼표로 구분, 기본 infer-worker,train-worker)    --no-images  검사만 하고 이미지는 만들지 않는다
 #   --out FILE        결과를 JSON으로 남긴다 (빌드 번호, 결과, 태그, 로그 경로, 산출물 ci-result.json의 내용)
@@ -27,9 +29,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
 # --- 1) 인자 ---
-# sed -n '2,7s/^# \{0,1\}//p' "$0" : 이 파일 2~7번째 줄(영문 설명)을 도움말로 출력
+# sed -n '2,8s/^# \{0,1\}//p' "$0" : 이 파일 2~8번째 줄(영문 설명)을 도움말로 출력
 usage() {
-  sed -n '2,7s/^# \{0,1\}//p' "$0"
+  sed -n '2,8s/^# \{0,1\}//p' "$0"
   exit "${1:-0}"
 }
 MODE=local SOURCE_DIR="$REPO_ROOT" IMAGES="infer-worker,train-worker" BUILD_IMAGES=true OUT="" WAIT=true
@@ -126,10 +128,19 @@ if [[ "$MODE" == local ]]; then
     # 점검용 경로: ConfigMap이 없다. 소스를 JENKINS_LOCAL_SOURCE에 복사해 두고 호출한 쪽이 그 경로를 쓴다.
     [[ -n "${JENKINS_LOCAL_SOURCE:-}" ]] && cp "$WORK/source.tgz" "$JENKINS_LOCAL_SOURCE"
   else
-    k -n "$NS" create configmap "ci-source-$SOURCE_ID" --from-file=source.tgz="$WORK/source.tgz" --dry-run=client -o yaml |
-      k -n "$NS" label --local -f - k3slab.io/ci-source=true -o yaml | k apply -f - >/dev/null
-    # 오래된 스냅샷 정리: 만든 시각 순으로 KEEP_SOURCES개만 남긴다
-    mapfile -t old < <(k -n "$NS" get configmap -l k3slab.io/ci-source=true --sort-by=.metadata.creationTimestamp -o name | head -n -"$KEEP_SOURCES")
+    # ConfigMap 이름이 내용 해시(ci-source-<해시>)라서 같은 이름이면 내용도 같다 → 이미 있으면 건너뛰고, 없으면 kubectl create로 만든다.
+    #   kubectl apply를 쓰지 않는 이유: apply는 객체 전체를 last-applied-configuration annotation에 복사하는데, 스냅샷이 커지면(압축 약 190KB 넘음)
+    #   annotation 한도 256KB를 넘어 "metadata.annotations: Too long"으로 실패한다. create는 그 annotation을 만들지 않는다.
+    #   ConfigMap 자체의 한도 1MiB는 위의 900KB 검사가 지킨다.
+    if k -n "$NS" get configmap "ci-source-$SOURCE_ID" >/dev/null 2>&1; then
+      log "ConfigMap ci-source-$SOURCE_ID already exists (same content, same hash); not creating it again"
+    else
+      k -n "$NS" create configmap "ci-source-$SOURCE_ID" --from-file=source.tgz="$WORK/source.tgz" --dry-run=client -o yaml |
+        k -n "$NS" label --local -f - k3slab.io/ci-source=true -o yaml | k create -f - >/dev/null
+    fi
+    # 오래된 스냅샷 정리: 만든 시각 순으로 KEEP_SOURCES개만 남긴다. 방금 쓸 스냅샷은 (재사용해서 오래된 것이라도) 지우지 않는다.
+    mapfile -t old < <(k -n "$NS" get configmap -l k3slab.io/ci-source=true --sort-by=.metadata.creationTimestamp -o name | head -n -"$KEEP_SOURCES" |
+      grep -vx "configmap/ci-source-$SOURCE_ID" || true)
     ((${#old[@]} == 0)) || k -n "$NS" delete "${old[@]}" >/dev/null
   fi
 
@@ -206,7 +217,7 @@ for _ in $(seq 120); do
   sleep 2
 done
 [[ -n "$BUILD" ]] || die "build did not leave the queue within 4 minutes (is an earlier build still running?)"
-log "started $JOB #$BUILD (source: ${SOURCE_ID:-git develop}, images: $([[ "$BUILD_IMAGES" == true ]] && echo "$IMAGES" || echo none))"
+log "started $JOB #$BUILD (source: ${SOURCE_ID:-git main}, images: $([[ "$BUILD_IMAGES" == true ]] && echo "$IMAGES" || echo none))"
 if [[ "$WAIT" == false ]]; then
   [[ -z "$OUT" ]] || printf '{"job":"%s","build":%s,"result":"RUNNING","source_id":"%s"}\n' "$JOB" "$BUILD" "$SOURCE_ID" >"$OUT"
   exit 3

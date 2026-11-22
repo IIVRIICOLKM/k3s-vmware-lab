@@ -140,6 +140,8 @@ required=(
   scripts/argocd-source.sh
   scripts/argocd-test.sh
   scripts/capacity-report.sh
+  scripts/cicd-e2e-test.sh
+  scripts/cicd-set-tag.sh
   scripts/cluster-apply.sh
   scripts/entry.sh
   scripts/fault-test.sh
@@ -175,6 +177,7 @@ required=(
   scripts/verify-project.sh
   scripts/vmware-modules.sh
   scripts/vmrest-start.sh
+  tests/infer/test_metrics.cpp
   tests/train/test_datasets.py
   tests/train/test_jobdb.py
   tests/train/test_train.py

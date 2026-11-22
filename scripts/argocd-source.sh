@@ -4,6 +4,7 @@
 #        scripts/argocd-source.sh push [message]       copy charts/ from the working tree into the repository (one commit)
 #        scripts/argocd-source.sh edit <file> <sed-script> <message>   change one file in the repository, commit, push
 #        scripts/argocd-source.sh revert <sha>  |  head  |  url
+#        scripts/argocd-source.sh ci-init | tree <dir> <message> <path>... [--keep <file>] | log [n] | show <file> [ref]   (Jenkins hand-off, see below)
 #
 # [한국어 설명] Argo CD가 읽어 갈 Git 저장소를 클러스터 안 Gitea에 만들고, 커밋을 넣고 빼는 스크립트.
 #   왜 필요한가: Argo CD는 Git에서 읽는다. GitHub 저장소는 공개이고 클러스터에 GitHub 쓰기 자격증명을 두지 않기 위해
@@ -16,6 +17,15 @@
 #              scripts/argocd-source.sh edit charts/k3slab-workload/values-infer-argocd.yaml 's|^  tag: .*|  tag: v0.3|' "infer-worker v0.3"
 #     revert : 커밋 하나를 되돌리는 새 커밋을 만든다(GitOps 방식 롤백).
 #     head   : 저장소 main의 최신 커밋 번호.  url : 클러스터 안에서 쓰는 저장소 주소.
+#     ci-init: Jenkins가 쓰는 Gitea 계정(k3slab-ci)과 토큰을 만든다 (CICD_연결, infra/k8s/jenkins/README.md "코드 변경에서 배포까지").
+#              계정은 제한된 일반 사용자(관리자 아님, 다른 저장소는 못 봄)이고 이 저장소에만 쓰기 권한(협력자 write)을 준다.
+#              토큰 범위는 write:repository 하나다(= 이 저장소 쓰기). 토큰은 ~/.config/k3s-vmware-lab/secrets/gitea-ci.env(권한 600)와
+#              클러스터 Secret ci/gitea-ci에만 둔다. 이미 있고 아직 쓸 수 있으면 다시 만들지 않는다.
+#     tree   : 작업 폴더가 아닌 <dir>의 <path>들(최상위 파일·폴더)을 저장소와 같게 맞추고 한 커밋으로 올린다. --keep <파일>은 저장소에 있는
+#              그 파일을 지우지 않고 그대로 둔다(Jenkins가 쓰는 values-infer-argocd.yaml의 태그가 개발 쪽 사본으로 되돌아가지 않게).
+#              <dir>에는 올릴 파일만 있어야 한다(.env, 빌드 결과물을 넣지 않는다). 새 커밋 번호를 출력한다.
+#     log    : main의 최근 커밋 n개(기본 5)를 "커밋<탭>작성자<탭>시각(UTC)<탭>제목" 줄로 출력한다. show: main(또는 ref)에 있는 파일 내용을 출력한다.
+#              (e2e 시험이 CI 봇의 태그 커밋과 배포 값을 확인하는 데 쓴다. Gitea API로 읽기만 한다)
 #   접속: kubectl port-forward로 Gitea에 잠깐 연결한다(끝나면 자동으로 닫힘). 비밀번호는 명령줄에 올리지 않는다.
 #   비밀값: ~/.config/k3s-vmware-lab/secrets/gitea.env (권한 600: 관리자 비밀번호, Argo CD 읽기 토큰). Git에는 없다.
 #   시험용: 환경변수 ARGOCD_SOURCE_REMOTE=<Git 주소>를 주면 클러스터 대신 그 저장소(예: file:///tmp/x.git)를 쓴다(init 제외).
@@ -26,9 +36,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
 # --- 1) 인자와 상수 ---
-# sed -n '2,6s/^# \{0,1\}//p' "$0" : 이 파일 2~6번째 줄(영문 설명)을 도움말로 출력
+# sed -n '2,7s/^# \{0,1\}//p' "$0" : 이 파일 2~7번째 줄(영문 설명)을 도움말로 출력
 if [[ "${1:-}" == -h || "${1:-}" == --help || $# -lt 1 ]]; then
-  sed -n '2,6s/^# \{0,1\}//p' "$0"
+  sed -n '2,7s/^# \{0,1\}//p' "$0"
   exit $(($# < 1 ? 1 : 0))
 fi
 CMD=$1
@@ -41,6 +51,10 @@ BRANCH="main"
 CRED_FILE="$LAB_SECRETS_DIR/gitea.env"
 KUBECONFIG_FILE="$LAB_SECRETS_DIR/kubeconfig"
 REPO_SECRET="repo-k3slab-git" # Argo CD가 저장소 접속 정보로 읽는 Secret 이름
+CI_USER="k3slab-ci"           # Jenkins용 Gitea 계정 (제한된 일반 사용자, 이 저장소 write 협력자)
+CI_NS="ci"                    # Jenkins 네임스페이스
+CI_SECRET="gitea-ci"          # Jenkins 컨트롤러가 마운트하는 Secret (키 token). JCasC에서 ${gitea-ci-token}
+CI_CRED_FILE="$LAB_SECRETS_DIR/gitea-ci.env"
 IN_CLUSTER_URL="http://gitea.$GIT_NS.svc.cluster.local:3000/$GIT_USER/$GIT_REPO.git"
 AUTHOR_NAME="k3slab argocd source"
 AUTHOR_EMAIL="argocd-source@k3slab.local"
@@ -238,6 +252,133 @@ cmd_edit() {
   g -C "$dir" rev-parse HEAD
 }
 
+# --- 5-1) tree : <dir>의 지정한 경로를 저장소와 같게 맞춘다 ---
+# tree <dir> <message> <path>... [--keep <repo file>]... : 각 <path>(최상위 파일·폴더)를 저장소에서 지우고 <dir>/<path>로 바꿔 한 커밋으로 올린다.
+#   <dir>에 없는 경로는 저장소에서도 사라진다(지운 파일이 반영된다). --keep 파일은 바꾸기 전 저장소의 내용을 되돌려 놓는다.
+cmd_tree() {
+  (($# >= 3)) || die "usage: tree <dir> <message> <path>... [--keep <repo file>]..."
+  local src=$1 msg=$2 dir="$WORK/repo" p f
+  local paths=() keep=()
+  shift 2
+  while (($#)); do
+    case "$1" in
+      --keep) keep+=("${2:?--keep needs a file}"); shift 2 ;;
+      *) paths+=("$1"); shift ;;
+    esac
+  done
+  [[ -d "$src" ]] || die "tree: $src is not a directory"
+  ((${#paths[@]} > 0)) || die "tree: give at least one path"
+  for p in "${paths[@]}" ${keep[@]+"${keep[@]}"}; do
+    [[ "$p" =~ ^[A-Za-z0-9._/-]+$ && "$p" != /* && "$p" != *..* ]] || die "tree: path must be relative and inside the repository: '$p'"
+  done
+  [[ -z "${ARGOCD_SOURCE_REMOTE:-}" ]] && load_creds
+  open_git
+  clone_repo "$dir"
+  # --keep: 바꾸기 전 내용을 임시 폴더에 보관했다가 바꾼 뒤에 되돌려 놓는다
+  mkdir -p "$WORK/keep"
+  for f in ${keep[@]+"${keep[@]}"}; do
+    if [[ -f "$dir/$f" ]]; then mkdir -p "$WORK/keep/$(dirname "$f")" && cp -p "$dir/$f" "$WORK/keep/$f"; fi
+  done
+  for p in "${paths[@]}"; do
+    rm -rf "${dir:?}/$p"
+    if [[ -e "$src/$p" ]]; then
+      mkdir -p "$dir/$(dirname "$p")"
+      cp -a "$src/$p" "$dir/$p"
+    fi
+  done
+  for f in ${keep[@]+"${keep[@]}"}; do
+    if [[ -f "$WORK/keep/$f" ]]; then mkdir -p "$dir/$(dirname "$f")" && cp -p "$WORK/keep/$f" "$dir/$f"; fi
+  done
+  g -C "$dir" add -A -- "${paths[@]}"
+  if commit_push "$dir" "$msg"; then
+    info "pushed: $msg"
+  else
+    info "the repository already matches ${paths[*]} (no new commit)"
+  fi
+  g -C "$dir" rev-parse HEAD
+}
+
+# --- 5-2) ci-init : Jenkins용 계정·토큰·Secret ---
+# 한 줄 요약: 관리자가 아닌 제한된 계정 k3slab-ci를 만들고, 이 저장소의 write 협력자로 넣고, write:repository 토큰을 만들어
+#   gitea-ci.env(600)와 Secret ci/gitea-ci에 둔다. Jenkins는 이 토큰으로 코드를 받고(읽기) 이미지 태그 커밋을 올린다(쓰기).
+cmd_ci_init() {
+  [[ -z "${ARGOCD_SOURCE_REMOTE:-}" ]] || die "ci-init works on the cluster's Gitea only (unset ARGOCD_SOURCE_REMOTE)"
+  k get namespace "$CI_NS" >/dev/null 2>&1 || die "namespace $CI_NS does not exist (install Jenkins first: scripts/jenkins-deploy.sh)"
+  k -n "$GIT_NS" rollout status deploy/gitea --timeout=5m >&2
+  load_creds
+  open_git
+  [[ "$(api GET "/api/v1/repos/$GIT_USER/$GIT_REPO")" == 200 ]] || die "repository $GIT_USER/$GIT_REPO does not exist (run: scripts/argocd-source.sh init)"
+  # 1) 계정: 제한된 일반 사용자(--restricted: 명시적으로 받은 저장소만 본다). 비밀번호는 무작위로 만들어 어디에도 저장하지 않는다 → 로그인은 토큰으로만 한다.
+  local users
+  users=$(k -n "$GIT_NS" exec deploy/gitea -- gitea admin user list)
+  if ! awk 'NR > 1 {print $2}' <<<"$users" | grep -qx "$CI_USER"; then
+    openssl rand -hex 24 | k -n "$GIT_NS" exec -i deploy/gitea -- sh -c \
+      'read -r PW; gitea admin user create --username "$0" --email "$0@k3slab.local" --password "$PW" --must-change-password=false --restricted' "$CI_USER" >&2
+    info "created Gitea user $CI_USER (restricted, not an admin)"
+  fi
+  # 2) 이 저장소에만 write 권한 (협력자). 204 = 적용됨
+  [[ "$(api PUT "/api/v1/repos/$GIT_USER/$GIT_REPO/collaborators/$CI_USER" '{"permission":"write"}')" == 204 ]] ||
+    die "could not add $CI_USER as a write collaborator: $(cat "$WORK/api.out")"
+  # 3) 토큰: 저장된 토큰이 아직 이 저장소에 push할 수 있으면 다시 만들지 않는다
+  local token="" ok=0
+  if [[ -f "$CI_CRED_FILE" ]]; then
+    [[ "$(stat -c %a "$CI_CRED_FILE")" == "600" ]] || die "$CI_CRED_FILE must be mode 600"
+    token=$(sed -n 's/^GITEA_CI_TOKEN=//p' "$CI_CRED_FILE")
+    if [[ -n "$token" ]]; then
+      printf 'user = "%s:%s"\n' "$CI_USER" "$token" |
+        curl -sS --config - -o "$WORK/ci-repo.json" "$BASE/api/v1/repos/$GIT_USER/$GIT_REPO" >/dev/null &&
+        [[ "$(jq -r '.permissions.push // false' "$WORK/ci-repo.json" 2>/dev/null)" == true ]] && ok=1
+    fi
+  fi
+  if ((!ok)); then
+    token=$(k -n "$GIT_NS" exec deploy/gitea -- gitea admin user generate-access-token \
+      --username "$CI_USER" --token-name "jenkins-$(date +%Y%m%d%H%M%S)" --scopes write:repository --raw)
+    [[ -n "$token" ]] || die "Gitea returned no access token"
+    (umask 077 && printf 'GITEA_CI_USER=%s\nGITEA_CI_TOKEN=%s\n' "$CI_USER" "$token" >"$CI_CRED_FILE")
+    info "created a write:repository token for $CI_USER (saved in $CI_CRED_FILE, mode 600)"
+  fi
+  # 4) 클러스터 Secret (YAML을 표준입력으로 넘겨 토큰이 명령줄에 남지 않는다)
+  k apply -f - >/dev/null <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: $CI_SECRET
+  namespace: $CI_NS
+  labels:
+    app.kubernetes.io/part-of: k3slab-ci
+type: Opaque
+stringData:
+  username: $CI_USER
+  token: $token
+EOF
+  info "Secret $CI_NS/$CI_SECRET holds the token of $CI_USER (write access to $GIT_USER/$GIT_REPO only)"
+}
+
+# --- 5-3) log / show : 읽기만 (Gitea API) ---
+# log [n] : main의 최근 커밋 n개. 줄마다 "커밋<탭>작성자<탭>커밋 시각(UTC, 초 단위)<탭>첫 줄 제목"
+cmd_log() {
+  local n=${1:-5}
+  [[ "$n" =~ ^[0-9]{1,3}$ ]] || die "log takes a number of commits (1-999): '$n'"
+  [[ -z "${ARGOCD_SOURCE_REMOTE:-}" ]] || die "log works on the cluster's Gitea only"
+  load_creds
+  open_git
+  [[ "$(api GET "/api/v1/repos/$GIT_USER/$GIT_REPO/commits?sha=$BRANCH&limit=$n&stat=false&files=false&verification=false")" == 200 ]] ||
+    die "cannot read the commit list: $(cat "$WORK/api.out")"
+  jq -r '.[] | [.sha, .commit.author.name, .commit.committer.date, (.commit.message | split("\n")[0])] | @tsv' "$WORK/api.out"
+}
+# show <file> [ref] : 저장소의 파일 내용 (ref 기본 main)
+cmd_show() {
+  (($# >= 1 && $# <= 2)) || die "usage: show <file> [ref]"
+  local file=$1 ref=${2:-$BRANCH}
+  [[ "$file" =~ ^[A-Za-z0-9._/-]+$ && "$file" != /* && "$file" != *..* ]] || die "file must be a relative path inside the repository: '$file'"
+  [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || die "invalid ref '$ref'"
+  [[ -z "${ARGOCD_SOURCE_REMOTE:-}" ]] || die "show works on the cluster's Gitea only"
+  load_creds
+  open_git
+  [[ "$(api GET "/api/v1/repos/$GIT_USER/$GIT_REPO/raw/$file?ref=$ref")" == 200 ]] || die "cannot read $file at $ref"
+  cat "$WORK/api.out"
+}
+
 # --- 6) revert / head / url ---
 # revert <커밋> : 그 커밋을 되돌리는 새 커밋을 main에 올린다 (기록은 지우지 않는다)
 cmd_revert() {
@@ -264,6 +405,10 @@ case "$CMD" in
   init) cmd_init ;;
   push) cmd_push "$@" ;;
   edit) cmd_edit "$@" ;;
+  tree) cmd_tree "$@" ;;
+  ci-init) cmd_ci_init ;;
+  log) cmd_log "$@" ;;
+  show) cmd_show "$@" ;;
   revert) cmd_revert "$@" ;;
   head) cmd_head ;;
   url) printf '%s\n' "$IN_CLUSTER_URL" ;;
