@@ -8,3 +8,5 @@
 | 2026-10-30 17:00:01 | ~~`registry.k3slab.local:5000/train-worker:v0.2`~~ **삭제**: GPU에서 이어서 학습할 때 `torch.load(map_location=cuda)`가 난수 상태를 GPU로 옮겨 `set_state()` 실패(재시도 6회 모두). CPU로 읽도록 고쳐 v0.3 | `sha256:833e112b0f54950b63243f887ec03acf4cb0c75b1964273600b470a90083aaa2` | `e5337a8+dirty` | `apps/train` | `c9325953cdd4348d` |
 | 2026-10-30 17:00:40 | `registry.k3slab.local:5000/infer-worker:v0.1` | `sha256:20dd54eee1862ccee64c905de5ad22be059c312299ef2ea6ff882aa3050c251e` | `e5337a8+dirty` | `apps/infer` | `dfea8f79bf0f6f73` |
 | 2026-10-30 17:15:30 | `registry.k3slab.local:5000/train-worker:v0.3` | `sha256:5eeeab4ba8182a91b0c142f700b074c257e3695a21ba94145de09998d59ad635` | `e5337a8+dirty` | `apps/train` | `f009928cbd0cacf6` |
+| 2026-11-07 12:14:26 | `registry.k3slab.local:5000/infer-worker:v0.2` | `sha256:a621ce2b32f6766cb95eba46cd03454d212ca47aa51b582598a32fd37cc3aa69` | `9b3bad3+dirty` | `apps/infer` | `9cd8625f95146a6c` |
+| 2026-11-07 12:19:16 | `registry.k3slab.local:5000/train-worker:v0.4` | `sha256:329b45e56ac14051845f627bd4954390a359522198a5eeda59410856b45f9642` | `9b3bad3+dirty` | `apps/train` | `0bbaaf903e7d2de1` |

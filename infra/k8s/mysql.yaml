@@ -1,0 +1,103 @@
+# MySQL for job status (proposal slides 6, 7 and 11) on the platform node (worker-cpu-1), next to the registry.
+# Deployed by scripts/mysql-deploy.sh, which first creates the Secret k3slab-db-root (root and app passwords, random,
+# never in Git) and afterwards applies infra/k8s/mysql-schema.sql. Workloads reach it as
+# mysql.k3slab-system.svc.cluster.local:3306 with the app account from the Secret k3slab-db (namespace default).
+# Data lives on worker-cpu-1's disk (local-path PVC): it survives pod restarts and MySQL restarts, but not recreating
+# that VM. Not exposed outside the cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: k3slab-system
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: k3slab-system
+spec:
+  replicas: 1
+  # One writer on one volume: the old pod must stop before the new one opens the data directory.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      nodeSelector:
+        k3slab.io/role: platform
+      # Time for InnoDB to flush and shut down cleanly on SIGTERM.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: mysql
+          image: docker.io/library/mysql:8.4.13
+          args:
+            # Small VM (6 GB shared with the registry and, later, Jenkins/Argo CD/monitoring): cap memory use.
+            - --innodb-buffer-pool-size=256M
+            - --max-connections=100
+            - --performance-schema=OFF
+            - --skip-name-resolve
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: k3slab-db-root
+                  key: root-password
+            - name: MYSQL_DATABASE
+              value: k3slab
+            - name: MYSQL_USER
+              value: k3slab
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: k3slab-db-root
+                  key: app-password
+          ports:
+            - containerPort: 3306
+          # Ready only when the server answers a query with the app account (not just an open port).
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "MYSQL_PWD=\"$MYSQL_PASSWORD\" mysql -uk3slab -h127.0.0.1 -e 'SELECT 1' k3slab >/dev/null"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysqladmin -uroot -h127.0.0.1 ping >/dev/null"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: k3slab-system
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306

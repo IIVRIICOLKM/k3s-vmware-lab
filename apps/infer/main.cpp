@@ -1,292 +1,87 @@
 // k3slab inference worker (proposal slide 10): a bounded request queue served by a fixed number of worker threads
-// that run requests in batches, with a per-request timeout.
+// that run requests in batches, with a per-request timeout. Batches run on the GPU (CUDA) when one is visible.
 //
-//   POST /infer   {"x":[64 floats]}  -> 200 {"class":k,"probs":[...],"batch":n,"queue_ms":t,"model_version":v}
+//   POST /infer   {"x":[64 floats]}  -> 200 {"class":k,"probs":[...],"batch":n,"queue_ms":t,"device":d,"model_version":v}
 //                                       429 when the queue is full (rejected at once, never left waiting)
 //                                       504 when the request waited longer than TIMEOUT_MS
 //                                       400 on a malformed body
 //   GET  /healthz                     -> 200 once the model is loaded
-//   GET  /metrics                     -> Prometheus text: queue length, results, batch sizes, latency
+//   GET  /metrics                     -> Prometheus text: device, queue length, results, batch sizes, latency
 //
-// The model is the classifier trained by apps/train/train.py, exported there as plain float32 weights (model.k3sm),
-// so this worker needs no ML runtime. Inference itself runs on the CPU for now; WORK_MS adds a fixed cost per batch
-// as a stand-in for one GPU call, which is what makes batching (and queue overflow) observable with a tiny model.
+// Files (flat on purpose: the in-cluster build ships this folder as a ConfigMap, which holds files only):
+//   main.cpp      HTTP server, startup, shutdown           config.*   environment settings
+//   model.*       K3SM model file and the CPU forward pass  queue.h    bounded request queue
+//   backend.h     CPU/GPU interface                         backend_cpu.cpp, backend_cuda.cu (backend_nocuda.cpp)
+//   worker.*      batch loop of one worker thread           metrics.*  /metrics counters   util.*  string helpers
 //
 // Configuration (environment): MAX_QUEUE=100 MAX_BATCH=8 WORKER_THREADS=2 TIMEOUT_MS=2000 WORK_MS=20 PORT=8080
-//                              MODEL_PATH=/models/model.k3sm MODEL_VERSION=unknown
+//                              MODEL_PATH=/models/model.k3sm MODEL_VERSION=unknown DEVICE=auto|cuda|cpu
 
 #include "httplib.h"
 
 #include <algorithm>
-#include <atomic>
-#include <chrono>
 #include <cmath>
-#include <condition_variable>
 #include <csignal>
-#include <cstdarg>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <deque>
-#include <fstream>
-#include <future>
+#include <exception>
 #include <memory>
-#include <mutex>
-#include <stdexcept>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
 
-using Clock = std::chrono::steady_clock;
+#include "backend.h"
+#include "config.h"
+#include "metrics.h"
+#include "model.h"
+#include "queue.h"
+#include "util.h"
+#include "worker.h"
 
 namespace {
 
-long env_long(const char *name, long fallback, long min, long max) {
-  const char *v = std::getenv(name);
-  if (v == nullptr || *v == '\0') return fallback;
-  char *end = nullptr;
-  long n = std::strtol(v, &end, 10);
-  if (*end != '\0' || n < min || n > max) {
-    std::fprintf(stderr, "invalid %s=%s (allowed %ld..%ld)\n", name, v, min, max);
+// Picks the backend for DEVICE. auto falls back to the CPU (and says why), cuda refuses to start without a GPU.
+std::unique_ptr<Backend> choose_backend(const Config &cfg, const Model &model) {
+  if (cfg.device != "auto" && cfg.device != "cuda" && cfg.device != "cpu") {
+    std::fprintf(stderr, "invalid DEVICE=%s (auto, cuda or cpu)\n", cfg.device.c_str());
     std::exit(2);
   }
-  return n;
+  if (cfg.device != "cpu") {
+    std::string why;
+    std::unique_ptr<Backend> gpu = make_cuda_backend(model, why);
+    if (gpu) return gpu;
+    if (cfg.device == "cuda") {
+      std::fprintf(stderr, "DEVICE=cuda but %s\n", why.c_str());
+      std::exit(1);
+    }
+    std::printf("k3slab-infer: GPU not used (%s); computing on the CPU\n", why.c_str());
+  }
+  return make_cpu_backend(model);
 }
 
-std::string env_str(const char *name, const char *fallback) {
-  const char *v = std::getenv(name);
-  return (v != nullptr && *v != '\0') ? v : fallback;
-}
-
-struct Config {
-  size_t max_queue = static_cast<size_t>(env_long("MAX_QUEUE", 100, 1, 100000));
-  size_t max_batch = static_cast<size_t>(env_long("MAX_BATCH", 8, 1, 1024));
-  size_t threads = static_cast<size_t>(env_long("WORKER_THREADS", 2, 1, 64));
-  long timeout_ms = env_long("TIMEOUT_MS", 2000, 1, 600000);
-  long work_ms = env_long("WORK_MS", 20, 0, 60000);
-  int port = static_cast<int>(env_long("PORT", 8080, 1, 65535));
-  std::string model_path = env_str("MODEL_PATH", "/models/model.k3sm");
-  std::string model_version = env_str("MODEL_VERSION", "unknown");
-};
-
-// ---------------------------------------------------------------------------------------------------------------
-// Model: Linear layers with ReLU in between, read from the K3SM file written by train.py's export_raw().
-
-struct Layer {
-  uint32_t out = 0, in = 0;
-  std::vector<float> w, b;  // w is row-major [out][in]
-};
-
-class Model {
- public:
-  static Model load(const std::string &path) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) throw std::runtime_error("cannot open " + path);
-    char magic[4];
-    uint32_t version = 0, count = 0;
-    f.read(magic, 4);
-    f.read(reinterpret_cast<char *>(&version), 4);
-    f.read(reinterpret_cast<char *>(&count), 4);
-    if (!f || std::memcmp(magic, "K3SM", 4) != 0 || version != 1 || count == 0 || count > 64)
-      throw std::runtime_error(path + " is not a K3SM v1 model");
-    Model m;
-    for (uint32_t i = 0; i < count; ++i) {
-      Layer l;
-      f.read(reinterpret_cast<char *>(&l.out), 4);
-      f.read(reinterpret_cast<char *>(&l.in), 4);
-      if (!f || l.out == 0 || l.in == 0 || l.out > 65536 || l.in > 65536)
-        throw std::runtime_error("bad layer header in " + path);
-      if (!m.layers_.empty() && m.layers_.back().out != l.in)
-        throw std::runtime_error("layer sizes do not chain in " + path);
-      l.w.resize(static_cast<size_t>(l.out) * l.in);
-      l.b.resize(l.out);
-      f.read(reinterpret_cast<char *>(l.w.data()), static_cast<std::streamsize>(l.w.size() * sizeof(float)));
-      f.read(reinterpret_cast<char *>(l.b.data()), static_cast<std::streamsize>(l.b.size() * sizeof(float)));
-      if (!f) throw std::runtime_error("truncated model " + path);
-      m.layers_.push_back(std::move(l));
-    }
-    if (f.peek() != EOF) throw std::runtime_error("trailing bytes in " + path);
-    return m;
+// GPU results must match the CPU reference: run the same random batch through both and compare the logits.
+// Float sums are added in a different order on the GPU, so allow a small relative difference.
+bool self_test(const Backend &backend, const Model &model, size_t max_batch) {
+  if (backend.device() == "cpu") return true;
+  std::mt19937 rng(7);
+  std::normal_distribution<float> dist(0.0f, 1.0f);
+  const size_t n = std::min<size_t>(max_batch, 8);
+  std::vector<std::vector<float>> xs(n, std::vector<float>(model.input_dim()));
+  std::vector<const std::vector<float> *> ptrs;
+  for (auto &x : xs) {
+    for (float &v : x) v = dist(rng);
+    ptrs.push_back(&x);
   }
-
-  size_t input_dim() const { return layers_.front().in; }
-  size_t output_dim() const { return layers_.back().out; }
-
-  // Forward pass for one sample; returns softmax probabilities.
-  std::vector<float> forward(const std::vector<float> &x) const {
-    std::vector<float> cur = x, next;
-    for (size_t li = 0; li < layers_.size(); ++li) {
-      const Layer &l = layers_[li];
-      next.assign(l.out, 0.0f);
-      for (uint32_t o = 0; o < l.out; ++o) {
-        const float *row = &l.w[static_cast<size_t>(o) * l.in];
-        float acc = l.b[o];
-        for (uint32_t i = 0; i < l.in; ++i) acc += row[i] * cur[i];
-        next[o] = (li + 1 < layers_.size()) ? std::max(acc, 0.0f) : acc;  // ReLU except after the last layer
-      }
-      cur.swap(next);
-    }
-    float mx = *std::max_element(cur.begin(), cur.end()), sum = 0.0f;
-    for (float &v : cur) sum += (v = std::exp(v - mx));
-    for (float &v : cur) v /= sum;
-    return cur;
+  std::vector<std::vector<float>> gpu;
+  backend.executor(n)->run(ptrs, gpu);
+  double worst = 0.0;
+  for (size_t s = 0; s < n; ++s) {
+    std::vector<float> cpu = model.logits(xs[s]);
+    for (size_t i = 0; i < cpu.size(); ++i)
+      worst = std::max(worst, std::fabs(cpu[i] - gpu[s][i]) / (1.0 + std::fabs(cpu[i])));
   }
-
- private:
-  std::vector<Layer> layers_;
-};
-
-// ---------------------------------------------------------------------------------------------------------------
-// Request queue: bounded, so overload is rejected at the door instead of piling up latency.
-
-struct Result {
-  int status = 500;
-  std::string body;
-};
-
-struct Request {
-  std::vector<float> x;
-  Clock::time_point enqueued = Clock::now();
-  std::promise<Result> done;
-};
-using RequestPtr = std::shared_ptr<Request>;
-
-class Queue {
- public:
-  explicit Queue(size_t capacity) : capacity_(capacity) {}
-
-  // False when the queue is full (or shutting down): the caller answers 429 immediately.
-  bool push(RequestPtr r) {
-    {
-      std::lock_guard<std::mutex> lk(m_);
-      if (closed_ || q_.size() >= capacity_) return false;
-      q_.push_back(std::move(r));
-    }
-    cv_.notify_one();
-    return true;
-  }
-
-  // Blocks until work is available, then takes up to max_batch requests at once. Empty result = shut down.
-  std::vector<RequestPtr> pop_batch(size_t max_batch) {
-    std::unique_lock<std::mutex> lk(m_);
-    cv_.wait(lk, [&] { return closed_ || !q_.empty(); });
-    std::vector<RequestPtr> batch;
-    while (!q_.empty() && batch.size() < max_batch) {
-      batch.push_back(std::move(q_.front()));
-      q_.pop_front();
-    }
-    return batch;
-  }
-
-  size_t size() {
-    std::lock_guard<std::mutex> lk(m_);
-    return q_.size();
-  }
-
-  void close() {
-    {
-      std::lock_guard<std::mutex> lk(m_);
-      closed_ = true;
-    }
-    cv_.notify_all();
-  }
-
- private:
-  std::mutex m_;
-  std::condition_variable cv_;
-  std::deque<RequestPtr> q_;
-  size_t capacity_;
-  bool closed_ = false;
-};
-
-// ---------------------------------------------------------------------------------------------------------------
-// Metrics (Prometheus text format, scraped later by Prometheus/Grafana, weeks 12-14).
-
-struct Metrics {
-  std::atomic<uint64_t> ok{0}, rejected{0}, timeout{0}, bad_request{0};
-  std::atomic<uint64_t> batches{0}, batched{0};
-  std::atomic<uint64_t> latency_us_sum{0};
-  static constexpr size_t kBuckets = 6;  // batch size histogram: 1, 2, 4, 8, 16, +Inf
-  std::atomic<uint64_t> batch_le[kBuckets]{};
-
-  void observe_batch(size_t n) {
-    static const size_t bounds[kBuckets - 1] = {1, 2, 4, 8, 16};
-    batches++;
-    batched += n;
-    for (size_t i = 0; i < kBuckets; ++i)
-      if (i == kBuckets - 1 || n <= bounds[i]) batch_le[i]++;
-  }
-};
-
-std::string fmt(const char *f, ...) __attribute__((format(printf, 1, 2)));
-std::string fmt(const char *f, ...) {
-  char buf[512];
-  va_list ap;
-  va_start(ap, f);
-  std::vsnprintf(buf, sizeof buf, f, ap);
-  va_end(ap);
-  return buf;
-}
-
-std::string error_json(const char *msg, size_t queue_len) {
-  return fmt("{\"error\":\"%s\",\"queue\":%zu}", msg, queue_len);
-}
-
-// Parses {"x":[f, f, ...]}: takes the numbers between the first '[' and the following ']'.
-bool parse_input(const std::string &body, std::vector<float> &out) {
-  size_t open = body.find('['), close = body.find(']', open == std::string::npos ? 0 : open);
-  if (open == std::string::npos || close == std::string::npos) return false;
-  std::string inner = body.substr(open + 1, close - open - 1);
-  const char *p = inner.c_str();
-  while (*p != '\0') {
-    while (*p == ' ' || *p == ',' || *p == '\n' || *p == '\t' || *p == '\r') ++p;
-    if (*p == '\0') break;
-    char *end = nullptr;
-    float v = std::strtof(p, &end);
-    if (end == p || !std::isfinite(v)) return false;
-    out.push_back(v);
-    p = end;
-  }
-  return true;
-}
-
-void worker_loop(const Config &cfg, const Model &model, Queue &queue, Metrics &metrics) {
-  const auto timeout = std::chrono::milliseconds(cfg.timeout_ms);
-  for (;;) {
-    std::vector<RequestPtr> batch = queue.pop_batch(cfg.max_batch);
-    if (batch.empty()) return;  // queue closed
-
-    // Requests that already waited past the deadline are failed, not run.
-    auto now = Clock::now();
-    std::vector<RequestPtr> live;
-    for (auto &r : batch) {
-      if (now - r->enqueued > timeout) {
-        metrics.timeout++;
-        r->done.set_value({504, error_json("timed out in queue", queue.size())});
-      } else {
-        live.push_back(r);
-      }
-    }
-    if (live.empty()) continue;
-
-    // One fixed cost per batch (stand-in for a single GPU call), then the per-sample compute.
-    if (cfg.work_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(cfg.work_ms));
-    metrics.observe_batch(live.size());
-    for (auto &r : live) {
-      std::vector<float> probs = model.forward(r->x);
-      size_t cls = static_cast<size_t>(std::max_element(probs.begin(), probs.end()) - probs.begin());
-      auto waited = Clock::now() - r->enqueued;
-      long queue_ms = std::chrono::duration_cast<std::chrono::milliseconds>(waited).count();
-      std::string body = fmt("{\"class\":%zu,\"batch\":%zu,\"queue_ms\":%ld,\"model_version\":\"%s\",\"probs\":[",
-                             cls, live.size(), queue_ms, cfg.model_version.c_str());
-      for (size_t i = 0; i < probs.size(); ++i) body += fmt(i ? ",%.5f" : "%.5f", probs[i]);
-      body += "]}";
-      metrics.ok++;
-      metrics.latency_us_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(waited).count());
-      r->done.set_value({200, std::move(body)});
-    }
-  }
+  std::printf("k3slab-infer: self-test %zu samples, max relative logit difference GPU vs CPU %.2e\n", n, worst);
+  return worst < 1e-3;
 }
 
 }  // namespace
@@ -301,23 +96,31 @@ int main() {
 
   Config cfg;
   Model model;
+  std::unique_ptr<Backend> backend;
   try {
     model = Model::load(cfg.model_path);
+    backend = choose_backend(cfg, model);
+    if (!self_test(*backend, model, cfg.max_batch)) {
+      std::fprintf(stderr, "self-test failed: GPU results differ from the CPU reference\n");
+      return 1;
+    }
   } catch (const std::exception &e) {
-    std::fprintf(stderr, "model load failed: %s\n", e.what());
+    std::fprintf(stderr, "startup failed: %s\n", e.what());
     return 1;
   }
-  std::printf("k3slab-infer: model %s (%s) in=%zu out=%zu; MAX_QUEUE=%zu MAX_BATCH=%zu WORKER_THREADS=%zu "
-              "TIMEOUT_MS=%ld WORK_MS=%ld PORT=%d\n",
-              cfg.model_path.c_str(), cfg.model_version.c_str(), model.input_dim(), model.output_dim(), cfg.max_queue,
-              cfg.max_batch, cfg.threads, cfg.timeout_ms, cfg.work_ms, cfg.port);
+  std::printf("k3slab-infer: model %s (%s) in=%zu out=%zu layers=%zu macs/sample=%llu; device=%s (%s); "
+              "MAX_QUEUE=%zu MAX_BATCH=%zu WORKER_THREADS=%zu TIMEOUT_MS=%ld WORK_MS=%ld PORT=%d\n",
+              cfg.model_path.c_str(), cfg.model_version.c_str(), model.input_dim(), model.output_dim(),
+              model.layers().size(), static_cast<unsigned long long>(model.macs()), backend->device().c_str(),
+              backend->description().c_str(), cfg.max_queue, cfg.max_batch, cfg.threads, cfg.timeout_ms, cfg.work_ms,
+              cfg.port);
   std::fflush(stdout);
 
   Queue queue(cfg.max_queue);
   Metrics metrics;
   std::vector<std::thread> workers;
   for (size_t i = 0; i < cfg.threads; ++i)
-    workers.emplace_back(worker_loop, std::cref(cfg), std::cref(model), std::ref(queue), std::ref(metrics));
+    workers.emplace_back(worker_loop, std::cref(cfg), std::cref(*backend), std::ref(queue), std::ref(metrics));
 
   httplib::Server svr;
   // Each waiting request holds an HTTP thread, so the pool must be larger than the queue; otherwise the HTTP layer,
@@ -355,30 +158,9 @@ int main() {
 
   svr.Get("/healthz", [](const httplib::Request &, httplib::Response &res) { res.set_content("ok\n", "text/plain"); });
 
+  const std::string device = backend->device(), gpu = backend->device() == "cuda" ? backend->description() : "";
   svr.Get("/metrics", [&](const httplib::Request &, httplib::Response &res) {
-    std::string m;
-    m += "# HELP k3slab_infer_queue_length Requests waiting in the queue.\n# TYPE k3slab_infer_queue_length gauge\n";
-    m += fmt("k3slab_infer_queue_length %zu\n", queue.size());
-    m += "# HELP k3slab_infer_queue_capacity MAX_QUEUE.\n# TYPE k3slab_infer_queue_capacity gauge\n";
-    m += fmt("k3slab_infer_queue_capacity %zu\n", cfg.max_queue);
-    m += "# HELP k3slab_infer_worker_threads WORKER_THREADS.\n# TYPE k3slab_infer_worker_threads gauge\n";
-    m += fmt("k3slab_infer_worker_threads %zu\n", cfg.threads);
-    m += "# HELP k3slab_infer_requests_total Requests by result.\n# TYPE k3slab_infer_requests_total counter\n";
-    m += fmt("k3slab_infer_requests_total{result=\"ok\"} %llu\n", (unsigned long long)metrics.ok.load());
-    m += fmt("k3slab_infer_requests_total{result=\"rejected\"} %llu\n", (unsigned long long)metrics.rejected.load());
-    m += fmt("k3slab_infer_requests_total{result=\"timeout\"} %llu\n", (unsigned long long)metrics.timeout.load());
-    m += fmt("k3slab_infer_requests_total{result=\"bad_request\"} %llu\n", (unsigned long long)metrics.bad_request.load());
-    m += "# HELP k3slab_infer_batch_size Requests per executed batch.\n# TYPE k3slab_infer_batch_size histogram\n";
-    static const char *le[Metrics::kBuckets] = {"1", "2", "4", "8", "16", "+Inf"};
-    for (size_t i = 0; i < Metrics::kBuckets; ++i)
-      m += fmt("k3slab_infer_batch_size_bucket{le=\"%s\"} %llu\n", le[i], (unsigned long long)metrics.batch_le[i].load());
-    m += fmt("k3slab_infer_batch_size_sum %llu\n", (unsigned long long)metrics.batched.load());
-    m += fmt("k3slab_infer_batch_size_count %llu\n", (unsigned long long)metrics.batches.load());
-    m += "# HELP k3slab_infer_request_seconds Queue+compute time of successful requests.\n";
-    m += "# TYPE k3slab_infer_request_seconds summary\n";
-    m += fmt("k3slab_infer_request_seconds_sum %.6f\n", metrics.latency_us_sum.load() / 1e6);
-    m += fmt("k3slab_infer_request_seconds_count %llu\n", (unsigned long long)metrics.ok.load());
-    res.set_content(m, "text/plain; version=0.0.4");
+    res.set_content(metrics.render(cfg, queue.size(), device, gpu), "text/plain; version=0.0.4");
   });
 
   std::thread signal_thread([&] {

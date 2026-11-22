@@ -12,6 +12,15 @@ metadata:
     k3slab.io/job-id: {{ $id }}
 spec:
   backoffLimit: {{ .Values.train.backoffLimit }}
+  # Exit code 2 = a wrong request (bad dataset or --hidden, job id used by another model version). It fails the
+  # same way every time, so fail the Job at once instead of retrying it backoffLimit times.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: train
+          operator: In
+          values: [2]
   template:
     metadata:
       labels:
@@ -33,17 +42,32 @@ spec:
             - --steps-per-epoch={{ .Values.train.stepsPerEpoch }}
             - --batch-size={{ .Values.train.batchSize }}
             - --epoch-sleep={{ .Values.train.epochSleep }}
+            - --dataset={{ .Values.train.dataset }}
+            - --hidden={{ .Values.train.hidden }}
             - --checkpoint-dir=/checkpoints
           env:
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,utility
+          {{- with .Values.db.secretName }}
+          # DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD for apps/train/jobdb.py
+          envFrom:
+            - secretRef:
+                name: {{ . }}
+          {{- end }}
           {{- include "k3slab.resources" . | trim | nindent 10 }}
           volumeMounts:
             - name: checkpoints
               mountPath: /checkpoints
+            - name: datasets
+              mountPath: /data
+              readOnly: true
       volumes:
         - name: checkpoints
           hostPath:
             path: {{ .Values.checkpoints.hostPath }}
+            type: DirectoryOrCreate
+        - name: datasets
+          hostPath:
+            path: {{ .Values.datasets.hostPath }}
             type: DirectoryOrCreate
 {{- end }}

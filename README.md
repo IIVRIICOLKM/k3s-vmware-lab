@@ -27,7 +27,7 @@
 - **k3s-server**: 클러스터의 컨트롤 플레인입니다.<br>
   클러스터 상태를 관리하고 워크로드를 각 노드에 스케줄링합니다.
 - **worker-cpu-1**: 플랫폼 역할(`k3slab.io/role=platform`)의 CPU 워커입니다.<br>
-  학습·추론 이미지를 저장하는 내부 레지스트리를 호스팅합니다.
+  학습·추론 이미지를 저장하는 내부 레지스트리와 작업 상태 DB(MySQL)를 호스팅합니다.
 - **worker-cpu-2**: 애플리케이션 역할(`k3slab.io/role=app`)의 CPU 워커입니다.<br>
   일반 애플리케이션 워크로드를 실행합니다.
 - **gpu-host**: 물리 GPU(RTX 3090 24GB)를 가진 호스트 노드입니다.<br>
@@ -41,7 +41,8 @@
 - [x] 클러스터 내부 이미지 빌드·레지스트리
 - [x] 템플릿 기반 학습·추론 실행
 - [x] 체크포인트 기반 학습 재개
-- [x] 요청 큐 기반 추론 워커
+- [x] 요청 큐 기반 추론 워커 (GPU 배치 추론, GPU가 없으면 CPU로 대체)
+- [x] 작업 상태 DB와 같은 작업 번호 중복 실행 방지
 
 ### 기술 스택
 
@@ -130,7 +131,21 @@ scripts/entry.sh
 cd infra/ansible && ansible-playbook playbooks/gpu-host.yml -e host_changes_allowed=true -K
 ```
 
-워크로드는 `charts/k3slab-workload`의 학습·추론 템플릿으로 실행합니다.
+### 4. 작업 실행
+
+```bash
+# 작업 상태 DB (처음 한 번)
+scripts/mysql-deploy.sh
+
+# 학습 → 상태 확인 → 결과로 추론 워커 띄우기
+scripts/job.sh submit train exp-001 --epochs 10
+scripts/job.sh status exp-001
+scripts/job.sh submit infer exp-001-svc --model-job exp-001
+```
+
+- 작업은 `charts/k3slab-workload`의 학습·추론 템플릿으로 실행되고, 상태는 MySQL에 기록됩니다.
+- 이미 등록된 작업 번호로 다시 요청하면 새로 실행하지 않고 기존 상태를 돌려줍니다.
+- 입력 파일은 `scripts/job.sh upload <파일.npz>`로 등록한 뒤 `--dataset npz:/data/<파일.npz>`로 지정합니다.
 
 ## 프로젝트 구조
 
@@ -157,8 +172,8 @@ k3s-vmware-lab/
 - [x] 인프라 구성과 클러스터 구축
 - [x] 이미지·레지스트리·실행 템플릿
 - [x] 학습 흐름과 체크포인트
-- [ ] 추론 워커 고도화
-- [ ] 작업 상태 저장소
+- [x] 추론 워커 고도화 (GPU 경로)
+- [x] 작업 상태 저장소 (MySQL)
 - [ ] CI/CD
 - [ ] 모니터링
 - [ ] 장애 상황 검증

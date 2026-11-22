@@ -34,12 +34,23 @@ train:
   stepsPerEpoch: 200
   batchSize: 256
   epochSleep: 0
+  dataset: synthetic   # synthetic, or npz:/data/<file>.npz uploaded with `scripts/job.sh upload` (apps/train/datasets.py)
+  hidden: "128"        # hidden layer widths of the MLP, comma-separated (e.g. "2048,2048")
   backoffLimit: 6      # pod deletion/SIGTERM counts as a failed attempt; the retry resumes from the checkpoint
 
 # Checkpoints and exported models on gpu-host (survive pod deletion). Training writes <jobId>/...; inference reads
 # <modelJobId>/model.k3sm from here, read-only.
 checkpoints:
   hostPath: /var/lib/k3slab/checkpoints
+
+# Input files for training on gpu-host, mounted read-only at /data (scripts/job.sh upload copies files here).
+datasets:
+  hostPath: /var/lib/k3slab/datasets
+
+# Job status database (infra/k8s/mysql.yaml). The Secret holds DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD and is
+# created by scripts/mysql-deploy.sh. Empty secretName = no database; train.py then keeps status.json only.
+db:
+  secretName: k3slab-db
 
 infer:
   modelJobId: ""       # required; serve the model exported by this training job (<checkpoints>/<id>/model.k3sm)
@@ -48,5 +59,6 @@ infer:
   maxBatch: 8          # requests taken from the queue and run together
   timeoutMs: 2000      # requests that waited longer fail with HTTP 504
   threads: 2           # fixed worker threads (bounded VRAM use)
-  workMs: 20           # fixed cost per batch, a stand-in for one GPU call until inference runs on the GPU
+  workMs: 20           # optional fixed cost per batch (the stand-in for a GPU call in v0.1); 0 with the GPU path
+  device: auto         # auto: GPU when the pod has one, else CPU | cuda: GPU or fail | cpu: never the GPU
   port: 8080

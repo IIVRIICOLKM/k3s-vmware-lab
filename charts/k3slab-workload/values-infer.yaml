@@ -1,14 +1,16 @@
 # Inference worker template (apps/infer, C++). Usage:
 #   helm upgrade --install infer charts/k3slab-workload -f charts/k3slab-workload/values-infer.yaml \
 #     --set infer.modelJobId=<training job id> [--set infer.maxBatch=1]
+#   CPU only (e.g. while a training Job holds the only GPU): --set gpu=0 --set infer.device=cpu
 kind: infer
 image:
   repository: registry.k3slab.local:5000/infer-worker
-  tag: v0.1
+  tag: v0.2
 model:
   version: v0
-# Inference runs on the CPU for now (the worker has no CUDA path yet); it stays on gpu-host next to the models.
-gpu: 0
+# Batches run on the RTX 3090 (CUDA, apps/infer/backend_cuda.cu). gpu-host has one GPU, so a GPU inference pod and a
+# training Job cannot hold it at the same time; the one that comes second waits in Pending.
+gpu: 1
 resources:
   requests:
     cpu: 250m
@@ -20,4 +22,5 @@ infer:
   maxBatch: 8
   timeoutMs: 2000
   threads: 2
-  workMs: 20
+  workMs: 0
+  device: auto

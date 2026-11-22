@@ -5,10 +5,15 @@ seeded synthetic dataset and focuses on the platform contract every future model
 
 * one job id per request; a finished job id is not trained again (the proposal's duplicate-request rule),
 * a checkpoint after every epoch (atomic write) and on SIGTERM, so a deleted or preempted pod resumes where it stopped,
-* status records whose fields match the planned MySQL `jobs` table (job_id, job_type, model_version, status,
-  checkpoint_path, result_path, updated_at), written to <checkpoint-dir>/<job-id>/status.json and stdout.
+* status records in the MySQL `jobs` table (job_id, job_type, model_version, status, checkpoint_path, result_path,
+  updated_at; jobdb.py), with a copy in <checkpoint-dir>/<job-id>/status.json and on stdout. The database is the
+  source of truth when DB_HOST is set; without it (local runs) status.json is used instead.
 
-Usage: python train.py --job-id J --model-version V [--epochs N] [--checkpoint-dir DIR] ...
+Data and model shape are arguments, not code: --dataset picks a source from datasets.py (synthetic by default, or an
+uploaded .npz file), --hidden sets the hidden layer widths of the MLP. Swapping the research topic's dataset in means
+adding a Dataset there, nothing else.
+
+Usage: python train.py --job-id J --model-version V [--epochs N] [--dataset S] [--hidden 128] [--checkpoint-dir DIR]
 """
 
 from __future__ import annotations
@@ -25,6 +30,9 @@ from pathlib import Path
 
 import torch
 from torch import nn
+
+from datasets import open_dataset
+from jobdb import StatusStore
 
 STOP_REQUESTED = False
 
@@ -48,6 +56,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--batch-size", type=int, default=256)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--dataset", default="synthetic", help="synthetic or npz:<path> (see datasets.py)")
+    p.add_argument("--hidden", default="128", help="comma-separated hidden layer widths, e.g. 1024,1024")
     p.add_argument("--checkpoint-dir", default=os.environ.get("CHECKPOINT_DIR", "/checkpoints"))
     p.add_argument("--keep", type=int, default=3, help="number of epoch checkpoints to keep")
     p.add_argument("--epoch-sleep", type=float, default=0.0, help="pause after each epoch (to make interruption tests easy)")
@@ -63,6 +73,8 @@ class Job:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.status_file = self.dir / "status.json"
         self.latest_file = self.dir / "latest.json"
+        self.db = StatusStore()
+        self.first_status = True
 
     def status(self, status: str, **extra) -> dict:
         record = {
@@ -77,9 +89,14 @@ class Job:
         }
         atomic_write_text(self.status_file, json.dumps(record, indent=2) + "\n")
         print(json.dumps(record), flush=True)
+        # The first record of a process is a new attempt (a Job retry after SIGTERM or a crash counts one more).
+        self.db.put(record, final=status in ("DONE", "FAILED"), new_attempt=self.first_status)
+        self.first_status = False
         return record
 
     def previous_status(self) -> dict | None:
+        if self.db.enabled:
+            return self.db.get(self.args.job_id)
         if self.status_file.exists():
             return json.loads(self.status_file.read_text())
         return None
@@ -125,12 +142,25 @@ def export_raw(model: nn.Sequential, path: Path) -> None:
     os.replace(tmp, path)
 
 
-def synthetic_batch(gen: torch.Generator, batch: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
-    """Separable 10-class data: class k is a Gaussian blob around a fixed random center (same for every run)."""
-    centers = torch.randn(10, 64, generator=torch.Generator().manual_seed(1234))
-    y = torch.randint(0, 10, (batch,), generator=gen)
-    x = centers[y] + 0.8 * torch.randn(batch, 64, generator=gen)
-    return x.to(device), y.to(device)
+def build_model(input_dim: int, hidden: list[int], classes: int) -> nn.Sequential:
+    """MLP: Linear+ReLU per hidden width, then a Linear to the classes (the shape export_raw and apps/infer expect)."""
+    layers: list[nn.Module] = []
+    width = input_dim
+    for h in hidden:
+        layers += [nn.Linear(width, h), nn.ReLU()]
+        width = h
+    layers.append(nn.Linear(width, classes))
+    return nn.Sequential(*layers)
+
+
+def parse_hidden(text: str) -> list[int]:
+    try:
+        widths = [int(v) for v in text.split(",") if v.strip()]
+    except ValueError:
+        widths = []
+    if not widths or any(w < 1 or w > 16384 for w in widths) or len(widths) > 8:
+        raise ValueError(f"--hidden must be 1-8 comma-separated widths in 1..16384, got {text!r}")
+    return widths
 
 
 def main() -> int:
@@ -143,9 +173,24 @@ def main() -> int:
         print(json.dumps({**prev, "note": "already DONE; not training again"}), flush=True)
         return 0
 
+    if prev and prev.get("model_version") not in (None, args.model_version):
+        # One job id = one experiment: never overwrite another version's record or checkpoints.
+        print(json.dumps({**prev, "error": f"job id already used for model_version {prev['model_version']!r}"}),
+              flush=True)
+        return 2
+
+    try:
+        hidden = parse_hidden(args.hidden)
+        data = open_dataset(args.dataset)
+    except (ValueError, OSError) as exc:
+        # A wrong request (bad --hidden, missing or malformed dataset file) fails the same way on every retry:
+        # record FAILED and exit 2, which the chart's podFailurePolicy turns into an immediate Job failure.
+        job.status("FAILED", epochs=args.epochs, error=str(exc))
+        return 2
+    shape = {"dataset": data.name, "hidden": hidden}
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(args.seed)
-    model = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 10)).to(device)
+    model = build_model(data.input_dim, hidden, data.num_classes).to(device)
     optim = torch.optim.Adam(model.parameters(), lr=args.lr)
     gen = torch.Generator().manual_seed(args.seed)
     start_epoch, start_step = 1, 0
@@ -162,9 +207,9 @@ def main() -> int:
         if start_step >= args.steps_per_epoch:  # the checkpoint closed an epoch
             start_epoch, start_step = start_epoch + 1, 0
         job.status("RUNNING", checkpoint_path=ckpt_path, resumed_from=ckpt_path, epoch=start_epoch, epochs=args.epochs,
-                   device=str(device))
+                   device=str(device), **shape)
     else:
-        job.status("RUNNING", epoch=start_epoch, epochs=args.epochs, device=str(device))
+        job.status("RUNNING", epoch=start_epoch, epochs=args.epochs, device=str(device), **shape)
 
     loss_fn = nn.CrossEntropyLoss()
     epoch = start_epoch
@@ -174,7 +219,7 @@ def main() -> int:
             correct = total = 0
             loss = torch.tensor(0.0)
             for step in range(first, args.steps_per_epoch):
-                x, y = synthetic_batch(gen, args.batch_size, device)
+                x, y = data.batch(gen, args.batch_size, device)
                 optim.zero_grad(set_to_none=True)
                 logits = model(x)
                 loss = loss_fn(logits, y)
@@ -185,23 +230,24 @@ def main() -> int:
                 if STOP_REQUESTED:
                     path = job.save({"model": model.state_dict(), "optim": optim.state_dict(), "gen": gen.get_state(),
                                      "epoch": epoch, "step": step + 1}, epoch, step + 1)
-                    job.status("INTERRUPTED", checkpoint_path=path, epoch=epoch, step=step + 1, epochs=args.epochs)
+                    job.status("INTERRUPTED", checkpoint_path=path, epoch=epoch, step=step + 1, epochs=args.epochs,
+                               **shape)
                     return 143  # 128 + SIGTERM: Kubernetes treats it as a failed attempt and the Job retries
             path = job.save({"model": model.state_dict(), "optim": optim.state_dict(), "gen": gen.get_state(),
                              "epoch": epoch, "step": args.steps_per_epoch}, epoch, args.steps_per_epoch)
             job.status("RUNNING", checkpoint_path=path, epoch=epoch, epochs=args.epochs, loss=round(loss.item(), 4),
-                       accuracy=round(correct / max(total, 1), 4))
+                       accuracy=round(correct / max(total, 1), 4), **shape)
             if args.epoch_sleep:
                 time.sleep(args.epoch_sleep)
     except Exception as exc:  # record the failure for the status table, then fail the pod
-        job.status("FAILED", epoch=epoch, epochs=args.epochs, error=repr(exc))
+        job.status("FAILED", epoch=epoch, epochs=args.epochs, error=repr(exc), **shape)
         raise
 
     result = job.dir / "model.pt"
     torch.save(model.state_dict(), result)
     export = job.dir / "model.k3sm"
     export_raw(model, export)
-    job.status("DONE", epoch=args.epochs, epochs=args.epochs, result_path=str(result), export_path=str(export))
+    job.status("DONE", epoch=args.epochs, epochs=args.epochs, result_path=str(result), export_path=str(export), **shape)
     return 0
 
 

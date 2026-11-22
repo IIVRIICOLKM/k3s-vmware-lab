@@ -9,7 +9,7 @@
 #   ② 과부하 거절: 큐를 작게(20) 잡고 300개를 한꺼번에 보내 초과분이 지연이 아니라 429로 즉시 거절되는지
 #   - 워커는 Helm 릴리스 infer-bench로 gpu-host에 띄우고(학습 모델 <작업번호>/model.k3sm 사용), 끝나면 지운다
 #   - 부하는 VM 위 curl Job이 Service로 보낸다(요청마다 새 연결). 결과: 응답 코드별 개수, 걸린 시간, 워커 메트릭
-#   [인자] 서빙할 학습 작업 번호, 이미지 태그(기본 v0.1)
+#   [인자] 서빙할 학습 작업 번호, 이미지 태그(기본 v0.2)
 #
 # 엄격 모드: -e 명령이 실패하면 즉시 종료 · -u 정의 안 된 변수를 쓰면 에러 · -o pipefail 파이프(a | b) 중간 실패도 실패로 처리
 set -euo pipefail
@@ -23,7 +23,7 @@ if [[ "${1:-}" == -h || "${1:-}" == --help || $# -lt 1 ]]; then
   exit $(($# < 1))
 fi
 MODEL_JOB=$1
-TAG=${2:-v0.1}
+TAG=${2:-v0.2}
 RELEASE="infer-bench"
 CHART="$REPO_ROOT/charts/k3slab-workload"
 KUBECONFIG_FILE="$LAB_SECRETS_DIR/kubeconfig"
@@ -111,7 +111,7 @@ record() {
   printf '# 추론 워커 벤치마크 (%s)\n\n' "$(date '+%Y-%m-%d %H:%M')"
   printf -- '- 생성: `scripts/infer-bench.sh %s %s`\n' "$MODEL_JOB" "$TAG"
   printf -- '- 이미지 `registry.k3slab.local:5000/infer-worker:%s`, 모델: 학습 작업 `%s`의 `model.k3sm`\n' "$TAG" "$MODEL_JOB"
-  printf -- '- WORK_MS는 배치 한 번당 고정 비용입니다. GPU 추론이 들어가기 전까지 GPU 호출 1회를 흉내 냅니다.\n'
+  printf -- '- WORK_MS는 배치 한 번당 고정 비용입니다(v0.1에서 GPU 호출 1회를 흉내 내던 값). 같은 조건으로 비교하려고 그대로 둡니다. 실제 GPU 계산 비교는 `scripts/infer-gpu-bench.sh`.\n'
 } >"$REPORT"
 
 md "" "## ① 배치 처리: MAX_BATCH 1 vs 8"

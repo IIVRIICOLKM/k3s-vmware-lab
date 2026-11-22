@@ -29,8 +29,27 @@ required=(
   .gitignore
   README.md
   apps/infer/Dockerfile
+  apps/infer/Makefile
+  apps/infer/backend.h
+  apps/infer/backend_cpu.cpp
+  apps/infer/backend_cuda.cu
+  apps/infer/backend_nocuda.cpp
+  apps/infer/config.cpp
+  apps/infer/config.h
   apps/infer/main.cpp
+  apps/infer/metrics.cpp
+  apps/infer/metrics.h
+  apps/infer/model.cpp
+  apps/infer/model.h
+  apps/infer/queue.h
+  apps/infer/util.cpp
+  apps/infer/util.h
+  apps/infer/worker.cpp
+  apps/infer/worker.h
   apps/train/Dockerfile
+  apps/train/datasets.py
+  apps/train/jobdb.py
+  apps/train/requirements.txt
   apps/train/train.py
   charts/k3slab-workload/Chart.yaml
   charts/k3slab-workload/templates/_helpers.tpl
@@ -72,6 +91,8 @@ required=(
   infra/k8s/labs/20-echo-api.yaml
   infra/k8s/labs/21-load-client.yaml
   infra/k8s/labs/30-restart-demo.yaml
+  infra/k8s/mysql-schema.sql
+  infra/k8s/mysql.yaml
   infra/k8s/nvidia-device-plugin.yaml
   infra/k8s/registry.yaml
   infra/packer/http/kickstart.pkrtpl.cfg
@@ -91,10 +112,14 @@ required=(
   scripts/fetch-rocky-iso.sh
   scripts/golden-build.sh
   scripts/infer-bench.sh
+  scripts/infer-gpu-bench.sh
   scripts/image-build.sh
+  scripts/job-db-test.sh
+  scripts/job.sh
   scripts/k3s-lab.sh
   scripts/lib/common.sh
   scripts/lib/pinned-versions.env
+  scripts/mysql-deploy.sh
   scripts/preflight.sh
   scripts/provider-smoke-test.sh
   scripts/register-vms.sh

@@ -8,6 +8,15 @@ metadata:
     {{- include "k3slab.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.infer.replicas }}
+  {{- if gt (int .Values.gpu) 0 }}
+  # gpu-host has a single GPU: a rolling update that starts the new pod first would wait forever for a second GPU
+  # while the old pod keeps the only one (seen 2026-11-07). Stop an old pod before starting its replacement.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
@@ -41,6 +50,8 @@ spec:
               value: {{ .Values.infer.port | quote }}
             - name: MODEL_PATH
               value: /models/{{ $modelJob }}/model.k3sm
+            - name: DEVICE
+              value: {{ .Values.infer.device | quote }}
             - name: NVIDIA_DRIVER_CAPABILITIES
               value: compute,utility
           readinessProbe:
