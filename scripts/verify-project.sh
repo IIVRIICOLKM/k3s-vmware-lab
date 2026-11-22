@@ -55,6 +55,7 @@ required=(
   charts/k3slab-workload/templates/_helpers.tpl
   charts/k3slab-workload/templates/infer-deployment.yaml
   charts/k3slab-workload/templates/train-job.yaml
+  charts/k3slab-workload/values-infer-argocd.yaml
   charts/k3slab-workload/values-infer.yaml
   charts/k3slab-workload/values-train.yaml
   charts/k3slab-workload/values.yaml
@@ -87,6 +88,13 @@ required=(
   infra/ansible/roles/k3s_node/tasks/main.yml
   infra/ansible/roles/k3s_node/templates/k3s.service.j2
   infra/ansible/roles/k3s_server/tasks/main.yml
+  infra/k8s/argocd/application-infer.yaml
+  infra/k8s/argocd/gitea.yaml
+  infra/k8s/argocd/install.yaml
+  infra/k8s/argocd/install.yaml.sha256
+  infra/k8s/argocd/kustomization.yaml
+  infra/k8s/argocd/namespace.yaml
+  infra/k8s/argocd/patches/remove-unused.yaml
   infra/k8s/gpu-smoke-job.yaml
   infra/k8s/labs/00-namespace.yaml
   infra/k8s/labs/10-gpu-placement.yaml
@@ -109,6 +117,9 @@ required=(
   infra/terraform/terraform.example.tfvars
   infra/terraform/variables.tf
   infra/terraform/versions.tf
+  scripts/argocd-deploy.sh
+  scripts/argocd-source.sh
+  scripts/argocd-test.sh
   scripts/capacity-report.sh
   scripts/cluster-apply.sh
   scripts/entry.sh

@@ -1,0 +1,141 @@
+# Removes the components this lab does not use from the upstream install.yaml (v3.6.2):
+#   dex-server (SSO login), notifications-controller (alerts), applicationset-controller (ApplicationSet).
+# Kept: server, repo-server, application-controller, redis. The three CRDs stay (harmless; the server lists them).
+#
+# [한국어 설명] 공식 설치 파일에서 쓰지 않는 구성요소(dex·notifications·applicationset)를 통째로 뺀다.
+#   - 남기는 것: server, repo-server, application-controller, redis (제안서의 최소 구성)
+#   - CRD 3개(Application·AppProject·ApplicationSet)는 그대로 둔다. ApplicationSet은 컨트롤러가 없으니 동작하지 않는다.
+#   - 업그레이드할 때: install.yaml을 새 버전으로 바꾼 뒤 `kubectl kustomize infra/k8s/argocd`가 에러 없이 렌더링되는지,
+#     그리고 아래 이름이 새 버전에도 있는지 확인한다(없으면 kustomize가 "no matches for Id" 오류를 낸다).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-dex-server
+$patch: delete
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-notifications-controller
+$patch: delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-dex-server
+$patch: delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-notifications-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-dex-server
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-notifications-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-dex-server
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-notifications-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+$patch: delete
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+$patch: delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-applicationset-controller
+$patch: delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-dex-server
+$patch: delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-notifications-controller-metrics
+$patch: delete
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-applicationset-controller-network-policy
+$patch: delete
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-dex-server-network-policy
+$patch: delete
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-notifications-controller-network-policy
+$patch: delete

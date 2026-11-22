@@ -1,0 +1,137 @@
+# Lab Git server for Argo CD (see infra/k8s/argocd/README.md, "Git 소스"). Argo CD reads the Helm chart from here because
+# the GitHub repository is public and the cluster must not hold GitHub write credentials. Gitea 28.3.0 (rootless image, SQLite), one
+# private repository k3slab/k3s-vmware-lab with the same layout as the project (charts/k3slab-workload/...). Jenkins can
+# push image-tag commits here, so the cluster never needs a GitHub write token.
+# Deployed by scripts/argocd-deploy.sh, which first creates the Secret gitea-secret (random SECRET_KEY, never in Git),
+# then creates the admin user, the repository and a read-only token for Argo CD (scripts/argocd-source.sh init).
+# Reached in-cluster as http://gitea.k3slab-system.svc.cluster.local:3000. Not exposed outside the cluster.
+# Data lives on the node's disk (local-path PVC): it survives pod restarts, not recreating that VM; scripts/argocd-source.sh
+# push rebuilds the repository from the working tree.
+#
+# [한국어 설명] Argo CD가 차트를 읽어 갈 연구실 내부 Git 서버. GitHub 저장소가 공개이고, 클러스터에 GitHub 쓰기 자격증명을 두지 않기 위해 둔다.
+#   - 네임스페이스 k3slab-system(레지스트리·MySQL과 같은 곳). 이 파일의 객체는 모두 이름이 gitea로 시작한다.
+#   - 메모리: requests 96Mi / limits 256Mi. SQLite라서 따로 DB 파드가 없다. 위치는 worker-cpu-2(app 노드).
+#   - 설정은 환경변수(GITEA__섹션__키)로 넣는다. SSH는 끄고 HTTP(3000)만 연다. 가입 불가, 저장소는 비공개(로그인해야 읽힌다).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-data
+  namespace: k3slab-system
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/part-of: k3slab-argocd
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: k3slab-system
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/part-of: k3slab-argocd
+spec:
+  replicas: 1
+  # One writer on one volume: the old pod must stop before the new one opens the data directory.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gitea
+        app.kubernetes.io/part-of: k3slab-argocd
+    spec:
+      nodeSelector:
+        k3slab.io/role: app
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: gitea
+          image: docker.io/gitea/gitea:28.3.0-rootless
+          ports:
+            - containerPort: 3000
+          env:
+            # Secret gitea-secret: key secret-key (random, created by scripts/argocd-deploy.sh). Gitea needs it to encrypt
+            # stored secrets; without it the image falls back to a built-in default.
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-secret
+                  key: secret-key
+            - name: GITEA__server__ROOT_URL
+              value: http://gitea.k3slab-system.svc.cluster.local:3000/
+            - name: GITEA__server__DISABLE_SSH
+              value: "true"
+            - name: GITEA__server__START_SSH_SERVER
+              value: "false"
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            - name: GITEA__repository__DEFAULT_BRANCH
+              value: main
+            # Small VM: use the SQL database for the issue index, keep sessions and cache in memory, and switch off
+            # features the lab does not use.
+            - name: GITEA__indexer__ISSUE_INDEXER_TYPE
+              value: db
+            - name: GITEA__cache__ADAPTER
+              value: memory
+            - name: GITEA__session__PROVIDER
+              value: memory
+            - name: GITEA__actions__ENABLED
+              value: "false"
+            - name: GITEA__packages__ENABLED
+              value: "false"
+            - name: GITEA__log__LEVEL
+              value: Warn
+            # Jenkins (in the cluster, a private address) may add webhooks later.
+            - name: GITEA__security__ALLOWED_HOST_LIST
+              value: private
+          # Ready only when Gitea's own health check passes (database and cache answer).
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            periodSeconds: 5
+            timeoutSeconds: 3
+          # First start creates the SQLite database and runs migrations: allow up to 150 s before the probes above count.
+          startupProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: k3slab-system
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/part-of: k3slab-argocd
+spec:
+  selector:
+    app.kubernetes.io/name: gitea
+  ports:
+    - port: 3000
+      targetPort: 3000

@@ -1,0 +1,10 @@
+# Namespace for Argo CD itself (the upstream install.yaml does not create it). The workload Argo CD manages lives in a
+# separate namespace, k3slab-apps, which scripts/argocd-deploy.sh creates.
+#
+# [한국어 설명] Argo CD가 설치될 네임스페이스. 공식 install.yaml에는 네임스페이스 생성이 없어서 따로 둔다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    app.kubernetes.io/part-of: k3slab-argocd

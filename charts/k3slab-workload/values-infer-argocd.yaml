@@ -1,0 +1,23 @@
+# Deploy values of the inference service that Argo CD keeps in sync with Git (infra/k8s/argocd/application-infer.yaml).
+# Argo CD renders this chart with: values.yaml < values-infer.yaml < this file (later files win).
+#
+# What changes here is what gets deployed. Commit a change and Argo CD rolls it out; revert the commit and it rolls back.
+#   - New image from Jenkins ("CICD_연결"): change ONLY `image.tag` below (file charts/k3slab-workload/values-infer-argocd.yaml,
+#     key image.tag). The repository stays registry.k3slab.local:5000/infer-worker. Never reuse a tag: every build gets a new one.
+#   - Another model: change infer.modelJobId and model.version together (the model must exist on gpu-host as
+#     /var/lib/k3slab/checkpoints/<modelJobId>/model.k3sm).
+# Do not put passwords or tokens here; this file is in Git.
+#
+# [한국어 설명] Argo CD가 읽는 "추론 서비스 배포 값". 이 파일을 Git에 커밋하면 Argo CD가 클러스터에 반영한다.
+#   - Jenkins가 새 이미지를 만들면 이 파일의 image.tag 한 줄만 바꾼다(파일: charts/k3slab-workload/values-infer-argocd.yaml, 키: image.tag).
+#   - 학습 Job은 여기서 다루지 않는다(scripts/job.sh가 MySQL에 등록하면서 만든다. infra/k8s/argocd/README.md 참고).
+#   - scripts/job.sh, infer-bench.sh, infer-gpu-bench.sh는 이 파일을 쓰지 않는다(values-infer.yaml만 쓴다). 그래서 이 파일을
+#     바꿔도 그 스크립트들의 동작은 그대로다.
+image:
+  tag: v0.2
+model:
+  version: v0
+infer:
+  modelJobId: db-1107b-train
+  replicas: 1
+  maxBatch: 8

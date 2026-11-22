@@ -1,0 +1,73 @@
+# Argo CD project and Application for the inference service (proposal weeks 11-13). Applied by
+# scripts/argocd-deploy.sh (app) into the argocd namespace.
+#
+# The Application keeps the namespace k3slab-apps equal to what Git says:
+#   chart   charts/k3slab-workload  (Deployment + Service for kind "infer")
+#   values  values-infer.yaml, then values-infer-argocd.yaml  (the file Jenkins/"CICD_연결" edits: image.tag)
+#   sync    automatic, prune on, self-heal on: a hand-made change (e.g. replicas) is reverted, a new commit is rolled out
+# The training Job is NOT managed here: scripts/job.sh registers every job in MySQL first and refuses duplicates, and an
+# Argo CD sync would create or delete Jobs behind that record. The project below only allows Deployment and Service, so a
+# Job added to the chart path is refused instead of silently run.
+#
+# repoURL points at the lab Git server (infra/k8s/argocd/gitea.yaml). When the work is on GitHub, change repoURL here and
+# in the AppProject sourceRepos, and register the GitHub credentials as an Argo CD repository Secret.
+#
+# [한국어 설명] 추론 서비스 하나를 Git과 맞추는 Argo CD 설정.
+#   - AppProject k3slab: 이 Git 저장소에서 읽고, k3slab-apps 네임스페이스에만 배포하며, Deployment·Service만 허용한다.
+#     학습 Job이 실수로 이 경로에 들어와도 Argo CD가 거부한다.
+#   - Application infer: 자동 동기화(prune: 사라진 객체 삭제, selfHeal: 손으로 바꾼 값을 되돌림).
+#   - 릴리스 이름은 Application 이름(infer)이라서 Deployment·Service 이름도 infer다. 서비스 주소: infer.k3slab-apps.svc:8080
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: k3slab
+  namespace: argocd
+spec:
+  description: k3s-vmware-lab inference service, deployed from the lab Git server
+  sourceRepos:
+    - http://gitea.k3slab-system.svc.cluster.local:3000/k3slab/k3s-vmware-lab.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: k3slab-apps
+  # No cluster-scoped objects, and only these two kinds inside the namespace (no Job, Secret, ...).
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infer
+  namespace: argocd
+  # Deleting the Application also deletes what it deployed (the GPU pod goes away with it).
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: k3slab
+  source:
+    repoURL: http://gitea.k3slab-system.svc.cluster.local:3000/k3slab/k3s-vmware-lab.git
+    targetRevision: main
+    path: charts/k3slab-workload
+    helm:
+      valueFiles:
+        - values-infer.yaml
+        - values-infer-argocd.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k3slab-apps
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # Transient failures (repo-server still starting, Git server restarting) are retried; "limit" counts attempts.
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  # Keep the last 10 deployed revisions for `argocd app history` / rollback.
+  revisionHistoryLimit: 10

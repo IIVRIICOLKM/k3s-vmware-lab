@@ -1,0 +1,168 @@
+# Argo CD v3.6.2, minimal: server, repo-server, application-controller, redis (no dex, notifications, ApplicationSet).
+# Apply with scripts/argocd-deploy.sh, which verifies install.yaml against install.yaml.sha256 and uses server-side
+# apply (the Application CRD is larger than the 256 KiB annotation limit of a client-side apply).
+#   kubectl kustomize infra/k8s/argocd     # render without a cluster
+#
+# [한국어 설명] 공식 install.yaml(v3.6.2, 수정 없이 그대로 보관)을 읽어서 이 연구실에 맞게 덧씌우는 kustomize 설정.
+#   1) 쓰지 않는 구성요소 제거: patches/remove-unused.yaml
+#   2) 메모리 requests/limits와 Go 메모리 상한(GOMEMLIMIT): 아래 patches 4개. worker-cpu-2(3 GB)에서 빠듯하지 않게 잡았다.
+#   3) 노드 배치: k3slab.io/role=app (worker-cpu-1은 레지스트리·MySQL·Jenkins·모니터링으로 이미 빠듯하다).
+#      platform 노드로 옮기려면 아래 nodeSelector 네 곳의 `app`을 `platform`으로 바꾼다.
+#   4) 설정: argocd-cm(재확인 주기 30초, 리소스 추적 방식), argocd-cmd-params-cm(HTTP 서비스, 병렬 처리 수 축소)
+#   버전 올리기: install.yaml을 새 버전 파일로 바꾸고 install.yaml.sha256을 다시 만든 뒤, 위 패치가 렌더링되는지 확인한다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - install.yaml
+patches:
+  - path: patches/remove-unused.yaml
+
+  # --- application-controller (StatefulSet): 클러스터 리소스를 감시하고 Git과 맞추는 본체. 메모리를 가장 많이 쓴다 ---
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: argocd-application-controller
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              k3slab.io/role: app
+            containers:
+              - name: argocd-application-controller
+                env:
+                  - name: GOMEMLIMIT   # Go GC가 limit(512Mi)에 닿기 전에 더 자주 돌게 해서 OOMKill을 피한다
+                    value: 450MiB
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 192Mi
+                  limits:
+                    memory: 512Mi
+
+  # --- repo-server: Git에서 받아 helm template을 돌린다. helm 하위 프로세스는 Go 메모리 밖이라 GOMEMLIMIT를 낮게 둔다 ---
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-repo-server
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              k3slab.io/role: app
+            initContainers:
+              - name: copyutil
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 16Mi
+                  limits:
+                    memory: 64Mi
+            containers:
+              - name: argocd-repo-server
+                env:
+                  - name: GOMEMLIMIT
+                    value: 256MiB
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+                  limits:
+                    memory: 384Mi
+
+  # --- server: API와 웹 화면 ---
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-server
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              k3slab.io/role: app
+            containers:
+              - name: argocd-server
+                env:
+                  - name: GOMEMLIMIT
+                    value: 220MiB
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 96Mi
+                  limits:
+                    memory: 256Mi
+
+  # --- redis: 캐시일 뿐이라(디스크 저장 없음) 80 MB를 넘으면 오래된 키부터 지운다. 원래 args 뒤에 두 개를 더한 것 ---
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-redis
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              k3slab.io/role: app
+            initContainers:
+              - name: secret-init
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 16Mi
+                  limits:
+                    memory: 64Mi
+            containers:
+              - name: redis
+                args:
+                  - --save
+                  - ""
+                  - --appendonly
+                  - "no"
+                  - --requirepass $(REDIS_PASSWORD)
+                  - --maxmemory
+                  - 80mb
+                  - --maxmemory-policy
+                  - allkeys-lru
+                resources:
+                  requests:
+                    cpu: 25m
+                    memory: 32Mi
+                  limits:
+                    memory: 128Mi
+
+  # --- argocd-cm: 동작 설정 ---
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cm
+      data:
+        # Git 변경을 30~35초 안에 알아챈다(기본은 2~3분). Git 서버가 클러스터 안 하나뿐이라 부담이 없다.
+        timeout.reconciliation: 30s
+        timeout.reconciliation.jitter: 5s
+        # 리소스 소유 표시를 annotation으로 한다(v3 기본값). 차트가 app.kubernetes.io/instance 라벨을 이미 쓰고 있어서
+        # 라벨 방식이면 Argo CD가 그 값을 Application 이름으로 덮어쓰려다 충돌한다.
+        application.resourceTrackingMethod: annotation
+        # 컨테이너 안 터미널(exec) 기능은 쓰지 않는다
+        exec.enabled: "false"
+
+  # --- argocd-cmd-params-cm: 구성요소별 실행 인자 ---
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cmd-params-cm
+      data:
+        # 포트 포워딩과 클러스터 안에서만 접속하므로 TLS 없이 HTTP로 서비스한다(자체 서명 인증서 경고 제거)
+        server.insecure: "true"
+        # 차트 렌더링(helm template)을 동시에 1개만: 메모리 급증을 막는다
+        reposerver.parallelism.limit: "1"
+        # 상태 계산 5개·동기화 작업 3개 동시 처리(기본 20·10). 앱이 1~2개라 충분하다
+        controller.status.processors: "5"
+        controller.operation.processors: "3"
+        # repo-server 응답 대기(기본 60초): 첫 helm 렌더링이 느려도 실패하지 않게
+        controller.repo.server.timeout.seconds: "120"
