@@ -27,11 +27,12 @@
 - **k3s-server**: 클러스터의 컨트롤 플레인입니다.<br>
   클러스터 상태를 관리하고 워크로드를 각 노드에 스케줄링합니다.
 - **worker-cpu-1**: 플랫폼 역할(`k3slab.io/role=platform`)의 CPU 워커입니다.<br>
-  학습·추론 이미지를 저장하는 내부 레지스트리와 작업 상태 DB(MySQL)를 호스팅합니다.
+  학습·추론 이미지를 저장하는 내부 레지스트리와 작업 상태 DB(MySQL), Jenkins 컨트롤러, Prometheus·Grafana를 호스팅합니다.
 - **worker-cpu-2**: 애플리케이션 역할(`k3slab.io/role=app`)의 CPU 워커입니다.<br>
-  일반 애플리케이션 워크로드를 실행합니다.
+  Argo CD와 Argo CD가 읽는 클러스터 내부 Git 서버(Gitea)를 실행합니다.
 - **gpu-host**: 물리 GPU(RTX 3090 24GB)를 가진 호스트 노드입니다.<br>
-  NVIDIA device plugin으로 GPU를 노출해 학습·추론 워크로드만 실행합니다.
+  NVIDIA device plugin으로 GPU를 노출해 학습·추론 워크로드를 실행합니다.<br>
+  Jenkins 빌드 에이전트(GPU 없이 CPU만, 한 번에 1개)와 GPU 지표 수집기(dcgm-exporter)도 여기서 돕니다.
 
 ### 주요 기능
 
@@ -43,6 +44,9 @@
 - [x] 체크포인트 기반 학습 재개
 - [x] 요청 큐 기반 추론 워커 (GPU 배치 추론, GPU가 없으면 CPU로 대체)
 - [x] 작업 상태 DB와 같은 작업 번호 중복 실행 방지
+- [x] Jenkins CI: 코드 검사(C++·Python·쉘·Helm) 뒤 Kaniko 이미지 빌드, 검사가 실패하면 이미지를 만들지 않음
+- [x] Argo CD GitOps 배포: Git 값이 바뀌면 자동 sync, 손으로 바꾼 것은 되돌림(self-heal), rollback
+- [x] Prometheus·Grafana 모니터링: 노드·파드·GPU·추론 큐 지표와 대시보드 3개
 
 ### 기술 스택
 
@@ -147,6 +151,18 @@ scripts/job.sh submit infer exp-001-svc --model-job exp-001
 - 이미 등록된 작업 번호로 다시 요청하면 새로 실행하지 않고 기존 상태를 돌려줍니다.
 - 입력 파일은 `scripts/job.sh upload <파일.npz>`로 등록한 뒤 `--dataset npz:/data/<파일.npz>`로 지정합니다.
 
+### 5. CI/CD와 모니터링
+
+```bash
+scripts/monitoring-deploy.sh        # Prometheus, Grafana, 지표 수집기
+scripts/jenkins-deploy.sh           # Jenkins (ci 네임스페이스, 첫 시작은 플러그인 때문에 약 10분)
+scripts/argocd-deploy.sh up         # Gitea와 Argo CD (추론 Application은 `app`으로 따로 적용)
+```
+
+- 화면은 클러스터 밖으로 열지 않고 `kubectl port-forward`로 봅니다. 방법과 계정은 `infra/k8s/{monitoring,jenkins,argocd}/README.md`에 있습니다.
+- 각 시험은 `scripts/monitoring-test.sh`, `scripts/jenkins-ci-test.sh`, `scripts/argocd-test.sh`이고 결과는 `docs/labs/`에 남습니다.
+- 장애 실험은 `scripts/fault-test.sh list`로 목록을 보고, 실험마다 `--dry-run`으로 절차를 먼저 확인합니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -160,11 +176,13 @@ k3s-vmware-lab/
 │   ├── packer/             # 기준 이미지
 │   ├── terraform/          # 가상머신
 │   ├── ansible/            # 노드 구성
-│   └── k8s/                # 클러스터 공용 매니페스트
-├── scripts/                # 프로비저닝·빌드·검증
+│   └── k8s/                # 클러스터 공용 매니페스트 (jenkins/, argocd/, monitoring/ 포함)
+├── scripts/                # 프로비저닝·빌드·배포·검증
 │   ├── entry.sh
 │   └── lib/
-└── docs/                   # 설계 문서, 실행 기록
+├── tests/                  # 단위 시험 (Jenkins 검사 단계가 실행)
+├── docs/                   # 설계 문서, 실행 기록
+└── Jenkinsfile             # CI 파이프라인
 ```
 
 ## 로드맵
@@ -175,5 +193,5 @@ k3s-vmware-lab/
 - [x] 추론 워커 고도화 (GPU 경로)
 - [x] 작업 상태 저장소 (MySQL)
 - [ ] CI/CD
-- [ ] 모니터링
-- [ ] 장애 상황 검증
+- [x] 모니터링
+- [ ] 장애 상황 검증 (과부하·잘못된 배포·추론 파드 강제 종료 완료, 설계는 [`docs/plan-week13-verification.md`](docs/plan-week13-verification.md))

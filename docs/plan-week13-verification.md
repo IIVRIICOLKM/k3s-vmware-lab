@@ -3,7 +3,7 @@
 연구제안서 14·15번 슬라이드의 "중단 상황 시나리오"를 실제로 돌리기 위한 설계 문서다(검증 실험 13–16주).
 물리 호스트가 하나인 구성에서 **막을 수 없는 장애**와 **막을 수 있는 장애**를 나누고, 막을 수 있는 장애를 하나씩 일으켜 복구 시간과 영향을 잰다.
 
-- 상태(2026-11-21, 11주차): **설계와 실행 스크립트까지 끝났다.** 클러스터에는 아직 아무것도 배포하지 않았다. 실험 실행은 총괄의 시작 신호 뒤에 한다.
+- 상태(2026-11-22, 11주차): **설계와 실행 스크립트까지 끝났고, 13주 몫(`inspect`, F7, F8 CPU, F1 CPU)을 실제 클러스터에서 실행했다.** 결과는 `docs/labs/fault-inspect-20261122-1940.md`, `fault-overload-20261122-1943.md`, `fault-bad-deploy-20261122-2038.md`, `fault-infer-kill-20261122-2041.md`와 `docs/labs/fault-week13-summary-20261122.md`(요약·인계)에 있다. 나머지(F2~F6, GPU 변형)는 아직 하지 않았다. 실험 실행은 실험마다 총괄 승인을 받는다.
 - 실행 스크립트: `scripts/fault-test.sh` (하위 명령 하나가 실험 하나). `--dry-run`으로 절차만 볼 수 있다.
 - 결과 보고서: 실험마다 `docs/labs/fault-<실험>-<날짜>.md`가 만들어진다.
 - 근거: `docs/progress-week09.md`("장애 영역 정리"), 기존 시험 기록 `docs/labs/`, 저장소의 매니페스트·차트·Ansible 설정.
@@ -271,4 +271,4 @@ scripts/fault-test.sh cleanup --node worker-cpu-2                 # 끊긴 실�
 ```
 
 `--model-job`에는 끝난(DONE) 학습 작업 번호를 준다. 이 PC의 `/var/lib/k3slab/checkpoints/<번호>/model.k3sm`을 서빙한다.
-Prometheus를 쓰려면 `--prom monitoring/prometheus-server:80`처럼 `<네임스페이스>/<서비스>:<포트>`를 준다(또는 환경변수 `FAULT_PROM`).
+Prometheus를 쓰려면 `--prom monitoring/prometheus:9090`처럼 `<네임스페이스>/<서비스>:<포트>`를 준다(또는 환경변수 `FAULT_PROM`). 이 클러스터의 실제 값은 `monitoring/prometheus:9090`이다(2026-11-22 확인).

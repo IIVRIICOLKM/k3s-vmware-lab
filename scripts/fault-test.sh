@@ -676,7 +676,8 @@ F7 overload — 과부하 → 429와 큐 대기
 절차    : 1. 추론 배포 → 이전 /metrics 기록 → 부하 Job 실행 → 끝날 때까지 대기
           2. 응답 코드별 개수, 코드별 응답 시간(중앙값·95%), 샘플링한 큐 길이 최댓값, 받아들인 요청의 평균 대기(metrics 증가량)
           3. 부하 뒤 큐가 비고 파드 재시작이 0이며 일반 요청이 200인지 확인
-측정    : 코드별 개수, 429 응답 시간 vs 200 응답 시간, 큐 길이 최댓값(용량 20), 평균 대기
+측정    : 코드별 개수(1차 근거), 429 응답 시간 vs 200 응답 시간, 요청 수·설정한 동시 수·실제 연결 수(부하 Job 쪽, 추론 파드 쪽), 큐 길이 최댓값(용량 20, 보조), 평균 대기,
+          부하 전후 ci 네임스페이스 파드(Jenkins 에이전트)와 gpu-host CPU 사용량
 성공    : 429가 발생 / 200·429 외 응답(000, 5xx)이 없음 / 429의 중앙값 응답 시간이 200보다 짧음(즉시 거절) / 큐 길이 ≤ 용량 / 부하 뒤 정상
 되돌리기: 부하 Job·추론 릴리스·네임스페이스 삭제
 참고    : 같은 조건의 이전 기록 docs/labs/infer-bench-20261107-1257.md ②: 300개 중 211개가 429
@@ -772,6 +773,7 @@ run_infer_kill() {
   confirm "F1 infer-kill: $FAULT_NS 네임스페이스에 추론 파드($dev)를 띄우고 $mode 방식으로 지웁니다(GPU $GPU)."
   begin_report "F1 추론 파드 강제 종료 시험"
   md "- 대상: 릴리스 \`$INFER_RELEASE\`(네임스페이스 \`$FAULT_NS\`), 모델 작업 \`$MODEL_JOB\`, 이미지 \`infer-worker:$TAG\`, 장치 \`$dev\`(GPU $GPU), 종료 방식 \`$mode\`"
+  ci_pods_block "실험 시작"
 
   # 복구 단계는 만들기 전에 등록한다 (역순 실행: 릴리스 제거 → 네임스페이스 삭제)
   ensure_ns
@@ -1454,6 +1456,35 @@ percentile() {
   awkc -v c="$1" -v p="$2" '$1 == "R" && $2 == c { print $3 }' | sort -n | awkc -v p="$2" '
     { a[NR] = $1 } END { if (NR == 0) { print "-"; exit } i = int(NR * p / 100 + 0.999999); if (i < 1) i = 1; if (i > NR) i = NR; printf "%.3f", a[i] }'
 }
+# conn_sampler_start : 추론 파드 안에서 0.2초마다 /proc/net/tcp를 읽어 이 PC의 임시 파일에 쌓는다(포트 8080=0x1F90).
+#   부하 Job 쪽에서 센 값과 달리 이것은 "서버가 받은" 연결이다. kubectl exec 스트림 하나를 부하 내내 열어 두고 conn_sampler_stop이 닫는다.
+conn_sampler_start() {
+  CONN_LOG=$(mktemp)
+  CONN_PID=
+  # kf 함수를 거치면 $!가 kubectl이 아니라 서브셸의 PID가 되어 kill이 스트림을 못 닫는다. 그래서 kubectl을 직접 부른다.
+  K3S_CONFIG_FILE=/dev/null KUBECONFIG="$KUBECONFIG_FILE" kubectl -n "$FAULT_NS" exec "$(infer_pod)" -- sh -c 'while :; do echo "=="; cat /proc/net/tcp /proc/net/tcp6 2>/dev/null; sleep 0.2 2>/dev/null || sleep 1; done' >"$CONN_LOG" 2>/dev/null &
+  CONN_PID=$!
+}
+# conn_sampler_stop : 샘플러를 닫고 서버 쪽 최대 ESTABLISHED 연결 수(CONN_MAX)와 샘플 수(CONN_SAMPLES)를 정한다. 측정 못 하면 CONN_MAX가 비어 있다.
+conn_sampler_stop() {
+  if [[ -n "${CONN_PID:-}" ]]; then
+    kill "$CONN_PID" 2>/dev/null || true
+    wait "$CONN_PID" 2>/dev/null || true
+  fi
+  CONN_PID=
+  CONN_SAMPLES=$(grep -c '^==' "${CONN_LOG:-/dev/null}" 2>/dev/null || true)
+  CONN_MAX=""
+  if [[ "${CONN_SAMPLES:-0}" -gt 0 ]]; then
+    CONN_MAX=$(awkc '/^==/ { if (c > m) m = c; c = 0; next } $2 ~ /:1F90$/ && $4 == "01" { c++ } END { if (c > m) m = c; print m + 0 }' "$CONN_LOG")
+  fi
+  rm -f "${CONN_LOG:-}"
+}
+# ci_pods_block 제목 : ci 네임스페이스(Jenkins)의 파드와 gpu-host의 CPU 사용량을 보고서에 남긴다.
+#   Jenkins는 빌드가 있을 때만 gpu-host에 에이전트 파드를 띄운다. 그 빌드가 gpu-host CPU를 쓰면 부하 시험 결과에 영향을 줄 수 있다.
+ci_pods_block() {
+  block "$1: ci 네임스페이스 파드 (Jenkins 에이전트 = 빌드 중)" "$(k -n ci get pods -o wide 2>&1 || true)"
+  block "$1: gpu-host CPU·메모리 사용량 (kubectl top)" "$(k top node gpu-host 2>&1 || true)"
+}
 # load_job_done : 부하 Job이 끝났으면(성공 또는 실패) 성공
 load_job_done() {
   local s f
@@ -1485,11 +1516,15 @@ spec:
               awk 'BEGIN { srand(1); printf "{\"x\":["; for (i = 0; i < 64; i++) printf "%s%.4f", (i ? "," : ""), rand() * 2 - 1; print "]}" }' > /tmp/body.json
               ( while :; do curl -s --max-time 2 $(infer_url)/metrics | sed -n 's/^k3slab_infer_queue_length \([0-9][0-9]*\).*/Q \1/p'; sleep 0.2; done ) > /tmp/q.log &
               sampler=\$!
+              # 이 파드가 실제로 연 연결 수: /proc/net/tcp에서 원격 포트 8080(0x1F90)의 ESTABLISHED(01)와 SYN_SENT(02)를 0.1초마다 센다
+              ( while :; do cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | awk '\$3 ~ /:1F90\$/ { if (\$4 == "01") e++; else if (\$4 == "02") s++ } END { print "C", e + 0, s + 0 }'; sleep 0.1 2>/dev/null || sleep 1; done ) > /tmp/c.log &
+              csampler=\$!
               start=\$(cut -d' ' -f1 /proc/uptime)
               seq $REQUESTS | xargs -P $CONC -I{} curl -s --connect-timeout 3 --max-time 30 -o /dev/null -w 'R %{http_code} %{time_total}\n' -X POST --data @/tmp/body.json $(infer_url)/infer
               end=\$(cut -d' ' -f1 /proc/uptime)
-              kill \$sampler
+              kill \$sampler \$csampler
               echo "E \$(echo "\$end \$start" | awk '{printf "%.2f", \$1 - \$2}')"
+              awk '\$1 == "C" { if (\$2 > e) e = \$2; if (\$3 > s) s = \$3; n++ } END { print "N", n + 0, e + 0, s + 0 }' /tmp/c.log
               cat /tmp/q.log
           resources:
             requests:
@@ -1502,7 +1537,7 @@ EOF
 
 # run_overload : F7 — 큐 20 추론 배포 → 부하 Job → 코드별 통계·큐 길이 → 부하 뒤 상태 확인
 run_overload() {
-  local m_before m_after rej_before rej_after ok_before ok_after sum_before sum_after cnt_before cnt_after load codes c429 other qmax cap mean_wait restarts after_q ans
+  local m_before m_after rej_before rej_after ok_before ok_after sum_before sum_after cnt_before cnt_after load codes c429 other qmax cap mean_wait restarts after_q ans total http_threads ncl cl_est cl_syn
   need_model
   confirm "F7 overload: $FAULT_NS 에 추론 파드를 띄우고 요청 ${REQUESTS}개를 동시 ${CONC}개로 보내 큐를 일부러 넘칩니다."
   begin_report "F7 과부하 시험 (429와 큐 대기)"
@@ -1525,8 +1560,12 @@ run_overload() {
   cap=$(metric_value k3slab_infer_queue_capacity <<<"$m_before")
 
   md "" "## 1. 부하"
+  ci_pods_block "부하 직전"
+  conn_sampler_start
   load_job
-  wait_for 600 load_job_done || die "the load job did not finish"
+  wait_for 600 load_job_done || { conn_sampler_stop; die "the load job did not finish"; }
+  conn_sampler_stop
+  ci_pods_block "부하 직후"
   load=$(kf logs job/fault-load 2>/dev/null)
   codes=$(awkc '$1 == "R" { c[$2]++ } END { for (k in c) printf "%s:%d\n", k, c[k] }' <<<"$load" | sort | paste -sd, -)
   c429=$(awkc '$1 == "R" && $2 == 429 { n++ } END { print n + 0 }' <<<"$load")
@@ -1534,10 +1573,19 @@ run_overload() {
   qmax=$(awkc '$1 == "Q" { if ($2 > m) m = $2 } END { print m + 0 }' <<<"$load")
   block "부하 Job 출력 요약 (E = 걸린 초)" "$codes
 $(grep '^E ' <<<"$load")"
-  metric "응답 코드별 개수" "$codes"
+  total=$(awkc '$1 == "R" { n++ } END { print n + 0 }' <<<"$load")
+  http_threads=$((20 + 1 * 4 + 16))
+  read -r _ ncl cl_est cl_syn < <(grep '^N ' <<<"$load" || echo "N 0 0 0")
+  md "" "**부하가 실제로 어떻게 들어갔는가** (설정값과 측정값을 따로 적는다)" ""
+  md "- 보낸 요청 수: **${total}개** (설정 ${REQUESTS}개)"
+  md "- 설정한 동시 수: **${CONC}** (\`xargs -P\`, 요청마다 새 연결)"
+  md "- 부하 Job이 실제로 연 연결 수(포트 8080, 0.1초 간격 ${ncl}번 측정): ESTABLISHED 최대 **${cl_est}개**, SYN_SENT(연결 맺는 중) 최대 ${cl_syn}개. 큐 길이 샘플러의 연결 1개가 섞여 있다"
+  md "- 추론 파드가 실제로 받은 연결 수(0.2초 간격 ${CONN_SAMPLES:-0}번 측정, 포트 8080 ESTABLISHED): 최대 **${CONN_MAX:-측정 못 함}개**. 부하 Job의 큐 길이 샘플러 연결 1개와 부하 뒤 확인용 요청이 섞일 수 있다"
+  md "- 워커의 HTTP 스레드 풀 크기: 큐 20 + 스레드 1 × 배치 4 + 16 = **${http_threads}개** (\`apps/infer/main.cpp\` 128행). 이보다 많은 연결은 스레드를 얻을 때까지 기다린다"
+  metric "응답 코드별 개수 (클라이언트가 센 값, 1차 근거)" "$codes"
   metric "429 응답 시간 (중앙값 / 95%)" "$(percentile 429 50 <<<"$load")초 / $(percentile 429 95 <<<"$load")초"
   metric "200 응답 시간 (중앙값 / 95%)" "$(percentile 200 50 <<<"$load")초 / $(percentile 200 95 <<<"$load")초"
-  metric "샘플링한 큐 길이 최댓값 (용량 ${cap:-?})" "$qmax"
+  metric "샘플링한 큐 길이 최댓값 (용량 ${cap:-?}, 0.2초 간격 샘플이라 짧은 포화를 놓칠 수 있다. 코드별 개수가 1차 근거)" "$qmax"
 
   md "" "## 2. 부하 뒤"
   sleep 5
@@ -1633,6 +1681,7 @@ run_bad_deploy() {
   confirm "F8 bad-deploy: 동작 중인 추론 릴리스를 없는 이미지 태그로 갱신한 뒤 롤백합니다(장치 $dev)."
   begin_report "F8 잘못된 배포 시험 (없는 이미지 태그, 장치 $dev)"
   md "- 릴리스 \`$INFER_RELEASE\`: 정상 태그 \`$TAG\` → 없는 태그 \`$MISSING_TAG\` → helm rollback. 장치 \`$dev\`(GPU $GPU)"
+  ci_pods_block "실험 시작"
 
   ensure_ns
   push_restore restore_ns

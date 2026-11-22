@@ -96,3 +96,17 @@
   - 작업 DB: `mysql-deploy.sh`, `job.sh`, `job-db-test.sh`
   - 추론 GPU 시험: `infer-gpu-bench.sh`
   - 장애 실험: `fault-test.sh` (설계는 [`plan-week13-verification.md`](plan-week13-verification.md))
+  - 자원 한도 점검: `capacity-report.sh` (배치와 메모리 한도는 [`plan-week11-capacity.md`](plan-week11-capacity.md))
+  - 모니터링: `monitoring-deploy.sh`, `monitoring-test.sh` ([`infra/k8s/monitoring/README.md`](../infra/k8s/monitoring/README.md))
+  - Jenkins CI: `jenkins-deploy.sh`, `jenkins-run.sh`, `jenkins-ci-test.sh`, 로컬 사전 검사 `jenkins-check.sh`, 파이프라인이 부르는 `jenkins-stage-*.sh`·`jenkins-record.sh`·`jenkins-registry.sh` ([`infra/k8s/jenkins/README.md`](../infra/k8s/jenkins/README.md))
+  - Argo CD: `argocd-deploy.sh`, `argocd-source.sh`, `argocd-test.sh` ([`infra/k8s/argocd/README.md`](../infra/k8s/argocd/README.md))
+
+## 12~13주 실행 기록
+
+| 주제 | 보고서 |
+|---|---|
+| 클러스터 DNS 지연(localdomain) 수정 | [`labs/dns-localdomain-20261122-1625.md`](labs/dns-localdomain-20261122-1625.md) |
+| Argo CD sync·self-heal·rollback | [`labs/argocd-20261122-1612.md`](labs/argocd-20261122-1612.md) |
+| 모니터링 (최종, 앞선 시행은 같은 폴더의 `monitoring-*`) | [`labs/monitoring-20261122-1654.md`](labs/monitoring-20261122-1654.md) |
+| Jenkins CI (최종, 오프라인 검사와 앞선 시행은 `jenkins-*`) | [`labs/jenkins-ci-20261122-1658.md`](labs/jenkins-ci-20261122-1658.md) |
+| 장애 실험 첫 단계 요약 (점검, 과부하, 잘못된 배포, 추론 파드 강제 종료. 실험별 보고서는 `fault-*`) | [`labs/fault-week13-summary-20261122.md`](labs/fault-week13-summary-20261122.md) |
