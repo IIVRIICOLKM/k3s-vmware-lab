@@ -47,3 +47,14 @@
   delegate_to: localhost
   become: false
   no_log: true
+
+# The VM nodes hand `search localdomain` to every pod (NetworkManager/vmnet8 DHCP); the vmnet8 NAT DNS never answers
+# the *.cluster.local.localdomain lookups that ndots:5 produces, so cluster names took about 6 s. This ConfigMap makes
+# CoreDNS answer the localdomain zone with NXDOMAIN itself. K3s applies every manifest in this directory and re-applies
+# it when the file changes (same mechanism as the NVIDIA device plugin in playbooks/gpu-host.yml); CoreDNS reloads it.
+# Details: infra/k8s/coredns-custom.yaml and docs/labs/dns-localdomain-*.md.
+- name: Deploy the CoreDNS customisation (localdomain zone answers NXDOMAIN)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../k8s/coredns-custom.yaml"
+    dest: /var/lib/rancher/k3s/server/manifests/k3slab-coredns-custom.yaml
+    mode: "0600"

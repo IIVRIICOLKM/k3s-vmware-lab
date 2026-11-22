@@ -1,0 +1,28 @@
+# CoreDNS customisation: answer the `localdomain` zone with NXDOMAIN immediately.
+# The VM nodes get `search localdomain` from NetworkManager (vmnet8 DHCP) and K3s copies it into every pod's
+# /etc/resolv.conf. With ndots:5, a cluster name such as x.ns.svc.cluster.local (4 dots) is first tried as
+# x.ns.svc.cluster.local.localdomain; CoreDNS' catch-all `forward . /etc/resolv.conf` sends that to the vmnet8 NAT DNS
+# (172.16.133.2), which never answers, so every lookup waited about 6 s (Go clients about 10 s). The block below makes
+# CoreDNS answer that zone itself. Nothing in this lab uses a real name under `localdomain`.
+# K3s' Corefile imports /etc/coredns/custom/*.server and reloads on change, so no CoreDNS restart is needed. The
+# ConfigMap is not part of K3s' own coredns manifest. Deployed by the Ansible role k3s_server, which copies this file
+# into the K3s server's auto-deploy directory (/var/lib/rancher/k3s/server/manifests/k3slab-coredns-custom.yaml).
+# Record: docs/labs/dns-localdomain-20261122-1625.md
+#
+# [한국어 설명] 파드 resolv.conf의 search 끝에 붙는 localdomain(VM의 DHCP 도메인) 때문에, 점이 4개인 클러스터 이름이
+#   x.ns.svc.cluster.local.localdomain 으로 먼저 질의되고 상위 DNS(172.16.133.2)가 응답하지 않아 약 6초가 걸렸다.
+#   localdomain 존을 CoreDNS가 바로 NXDOMAIN으로 답하게 해서 이 지연을 없앤다. VM·gpu-host 설정은 건드리지 않는다.
+#   되돌리기: kubectl -n kube-system delete configmap coredns-custom (그리고 Ansible이 둔 위 매니페스트 파일 삭제)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  localdomain.server: |
+    localdomain:53 {
+        errors
+        template ANY ANY {
+            rcode NXDOMAIN
+        }
+    }

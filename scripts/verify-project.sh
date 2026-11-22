@@ -95,6 +95,7 @@ required=(
   infra/k8s/argocd/kustomization.yaml
   infra/k8s/argocd/namespace.yaml
   infra/k8s/argocd/patches/remove-unused.yaml
+  infra/k8s/coredns-custom.yaml
   infra/k8s/gpu-smoke-job.yaml
   infra/k8s/labs/00-namespace.yaml
   infra/k8s/labs/10-gpu-placement.yaml
