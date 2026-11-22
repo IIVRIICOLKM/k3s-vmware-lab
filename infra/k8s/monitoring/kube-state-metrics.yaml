@@ -1,0 +1,109 @@
+# kube-state-metrics: turns object state into metrics (pods, Jobs, Deployments, DaemonSets, nodes, PVCs) so Prometheus
+# can answer "how many train Jobs ran/failed", "is the node Ready", "how many pods per node". Based on the upstream
+# example manifests of v2.20.0 (examples/standard), cut down to the resources this lab uses.
+# Image: registry.k8s.io/kube-state-metrics/kube-state-metrics v2.20.0 (released 2026-08-18).
+#
+# [한국어 설명] 쿠버네티스 객체(파드·Job·노드 등)의 상태를 지표로 바꿔 준다. worker-cpu-1에 1개.
+#   - 필요한 6종류만 켠다(--resources). 그만큼 메모리를 아낀다. requests 64Mi / limits 128Mi.
+#   - 파드 라벨 중 k3slab.io/kind·k3slab.io/job-id·app.kubernetes.io/instance만 kube_pod_labels에 싣는다(allowlist).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k3slab-kube-state-metrics
+rules:
+  - apiGroups: [""]
+    resources: [nodes, pods, persistentvolumeclaims]
+    verbs: [list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets]
+    verbs: [list, watch]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k3slab-kube-state-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k3slab-kube-state-metrics
+subjects:
+  - kind: ServiceAccount
+    name: kube-state-metrics
+    namespace: monitoring
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/version: 2.20.0
+    app.kubernetes.io/part-of: k3slab-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-state-metrics
+        app.kubernetes.io/version: 2.20.0
+        app.kubernetes.io/part-of: k3slab-monitoring
+    spec:
+      serviceAccountName: kube-state-metrics
+      automountServiceAccountToken: true
+      nodeSelector:
+        k3slab.io/role: platform
+      containers:
+        - name: kube-state-metrics
+          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --port=8080
+            - --telemetry-port=8081
+            - --resources=nodes,pods,deployments,daemonsets,jobs,persistentvolumeclaims
+            - --metric-labels-allowlist=pods=[k3slab.io/kind,k3slab.io/job-id,app.kubernetes.io/instance]
+          ports:
+            - name: http-metrics
+              containerPort: 8080
+            - name: telemetry
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http-metrics
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: telemetry
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault

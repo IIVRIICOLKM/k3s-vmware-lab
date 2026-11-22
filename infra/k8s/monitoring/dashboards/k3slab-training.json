@@ -1,0 +1,1006 @@
+{
+  "uid": "k3slab-training",
+  "title": "학습 작업",
+  "description": "MySQL jobs·job_events 테이블(작업 상태)과 학습 파드의 쿠버네티스 지표. 작업 상태는 Prometheus가 아니라 MySQL 데이터소스(읽기 전용)에서 읽는다.",
+  "tags": [
+    "k3slab",
+    "train",
+    "jobs"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "job_type",
+        "label": "작업 종류",
+        "type": "custom",
+        "query": "train,infer",
+        "current": {
+          "selected": true,
+          "text": "train",
+          "value": "train"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "train",
+            "value": "train"
+          },
+          {
+            "selected": false,
+            "text": "infer",
+            "value": "infer"
+          }
+        ],
+        "includeAll": false,
+        "multi": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "작업 상태별 개수",
+      "description": "MySQL jobs 테이블의 상태별 작업 수(위의 '작업 종류' 선택). 읽기 전용 계정 k3slab_ro로 직접 읽는다.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 10,
+        "h": 9
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT s.status AS status, COUNT(j.job_id) AS jobs FROM (SELECT 'PENDING' AS status UNION ALL SELECT 'RUNNING' UNION ALL SELECT 'INTERRUPTED' UNION ALL SELECT 'DONE' UNION ALL SELECT 'FAILED') AS s LEFT JOIN jobs AS j ON j.status = s.status AND j.job_type = '$job_type' GROUP BY s.status ORDER BY FIELD(s.status, 'PENDING', 'RUNNING', 'INTERRUPTED', 'DONE', 'FAILED')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "jobs"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^jobs$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left"
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "종류 × 상태 (전체)",
+      "description": "jobs 테이블 전체(train·infer)를 종류와 상태로 센 값.",
+      "gridPos": {
+        "x": 10,
+        "y": 0,
+        "w": 6,
+        "h": 9
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT job_type AS type, status, COUNT(*) AS jobs FROM jobs GROUP BY job_type, status ORDER BY job_type, status"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 3,
+      "type": "bargauge",
+      "title": "진행 중 학습의 진행률 (%)",
+      "description": "PENDING·RUNNING·INTERRUPTED 학습의 현재 에폭 / 전체 에폭. 에폭 숫자는 아래 표 참고.",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT job_id, ROUND(100 * CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epoch')) AS UNSIGNED) / NULLIF(CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epochs')) AS UNSIGNED), 0), 0) AS progress FROM jobs WHERE job_type = 'train' AND status IN ('PENDING', 'RUNNING', 'INTERRUPTED') ORDER BY updated_at DESC LIMIT 12"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^progress$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left"
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "작업 목록 (최근 갱신순)",
+      "description": "job_id, 상태, 시도 횟수(attempts), 에폭 / 전체 에폭, loss, 모델 버전, 마지막 갱신. 에폭·loss는 detail(JSON)에서 꺼낸다.",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 16,
+        "h": 9
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT job_id, status, attempts, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epoch')) AS UNSIGNED) AS epoch, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epochs')) AS UNSIGNED) AS epochs, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.loss')) AS DECIMAL(12,6)) AS loss, model_version AS version, updated_at FROM jobs WHERE job_type = '$job_type' ORDER BY updated_at DESC LIMIT 30"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PENDING": {
+                        "color": "blue",
+                        "text": "PENDING"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "RUNNING": {
+                        "color": "green",
+                        "text": "RUNNING"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "INTERRUPTED": {
+                        "color": "orange",
+                        "text": "INTERRUPTED"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "DONE": {
+                        "color": "dark-green",
+                        "text": "DONE"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "FAILED": {
+                        "color": "red",
+                        "text": "FAILED"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "진행 에폭 (실행·중단 작업)",
+      "description": "RUNNING·INTERRUPTED 학습의 에폭 / 전체 에폭.",
+      "gridPos": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT job_id, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epoch')) AS UNSIGNED) AS epoch, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epochs')) AS UNSIGNED) AS epochs FROM jobs WHERE job_type = 'train' AND status IN ('RUNNING', 'INTERRUPTED') ORDER BY updated_at DESC LIMIT 12"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "상태 변화 (분당 이벤트 수)",
+      "description": "job_events 테이블: 상태가 바뀔 때마다 한 줄. 분 단위로 센 값. 중단·재개가 시간 위에 보인다.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT $__timeGroupAlias(at, '1m'), status AS metric, COUNT(*) AS value FROM job_events WHERE $__timeFilter(at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RUNNING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INTERRUPTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DONE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FAILED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "상태 변화 이력 (최근)",
+      "description": "job_events의 최근 50줄 (선택한 시간 범위).",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "mysql-k3slab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "mysql",
+            "uid": "mysql-k3slab"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT at, job_id, status, CAST(JSON_UNQUOTE(JSON_EXTRACT(detail, '$.epoch')) AS UNSIGNED) AS epoch, JSON_UNQUOTE(JSON_EXTRACT(detail, '$.resumed_from')) AS resumed_from, JSON_UNQUOTE(JSON_EXTRACT(detail, '$.error')) AS error FROM job_events WHERE $__timeFilter(at) ORDER BY id DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "학습 파드 상태 (kube-state-metrics)",
+      "description": "이름이 train-으로 시작하는 파드(학습 Job의 파드)를 단계(phase)별로 센 값.",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (phase)(kube_pod_status_phase{pod=~\"train-.*\"})",
+          "legendFormat": "{{phase}}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "학습 Job (실행·성공·실패)",
+      "description": "Job 객체 기준 값. 재시도한 파드 수는 '실패한 파드'에 합쳐진다(중단 시험에서 늘어남).",
+      "gridPos": {
+        "x": 8,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(kube_job_status_active{job_name=~\"train-.*\"})",
+          "legendFormat": "실행 중",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(kube_job_status_succeeded{job_name=~\"train-.*\"})",
+          "legendFormat": "성공",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(kube_job_status_failed{job_name=~\"train-.*\"})",
+          "legendFormat": "실패한 파드",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "실행 중"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "성공"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "실패한 파드"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "학습 파드 재시작 / 컨테이너",
+      "description": "컨테이너 재시작 횟수. 학습 Job은 restartPolicy가 Never라 보통 0이다(재시도는 새 파드).",
+      "gridPos": {
+        "x": 16,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (pod)(kube_pod_container_status_restarts_total{pod=~\"train-.*\"})",
+          "legendFormat": "{{pod}}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "학습 파드 CPU (코어)",
+      "description": "cAdvisor: 컨테이너가 쓴 CPU 코어 수.",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (pod)(rate(container_cpu_usage_seconds_total{pod=~\"train-.*\",container!=\"\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "학습 파드 메모리",
+      "description": "cAdvisor: working set 메모리.",
+      "gridPos": {
+        "x": 8,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (pod)(container_memory_working_set_bytes{pod=~\"train-.*\",container!=\"\"})",
+          "legendFormat": "{{pod}}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "GPU 사용률 (학습 중 확인용)",
+      "description": "학습은 GPU를 쓴다. 같은 시간대 GPU 사용률.",
+      "gridPos": {
+        "x": 16,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "DCGM_FI_DEV_GPU_UTIL",
+          "legendFormat": "GPU {{gpu}}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+# Prometheus (metrics store) on worker-cpu-1 (role=platform). One replica, data on a small local-path PVC, 7 days of history.
+# Targets are found by the Kubernetes API (prometheus/prometheus.yml), so no change to the workload chart is needed.
+# Image: quay.io/prometheus/prometheus v3.16.0 (released 2026-11-05).
+#
+# [한국어 설명] 지표 저장소. worker-cpu-1(role=platform)에 1개만 띄운다. worker-cpu-2(3 GB)는 Argo CD 몫이라 여기에 두지 않는다(docs/plan-week11-capacity.md).
+#   - 보존 7일(--storage.tsdb.retention.time), 크기 상한 2GB(--storage.tsdb.retention.size). 디스크는 local-path PVC 3Gi.
+#     7일로 한 이유: 검증 실험(13~16주)이 며칠에 걸치므로 앞선 실험 값도 남아 있어야 한다. 용량은 크기 상한 2GB가 PVC 3Gi 안에서 막아 준다.
+#     VM을 다시 만들면 데이터가 사라진다(레지스트리·MySQL과 같은 성질). 실험 기록은 docs/labs/에 따로 남긴다.
+#   - 메모리: requests 384Mi / limits 768Mi. GOMEMLIMIT를 limit보다 낮게 두어, 한도에 닿기 전에 Go가 메모리를 먼저 줄인다.
+#     CPU limit은 두지 않는다(CPU 제한에 걸리면 수집이 밀린다). requests만 둔다.
+#   - 데이터 폴더를 한 번에 하나만 열 수 있어서 업데이트 전략은 Recreate다(MySQL과 같음).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+# Read-only access to what service discovery needs: pods (scrape targets), nodes and nodes/proxy (kubelet cAdvisor
+# through the API server, which works for gpu-host too without opening kubelet port 10250 to pods).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k3slab-prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/metrics, nodes/proxy, pods]
+    verbs: [get, list, watch]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k3slab-prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k3slab-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: k3slab-monitoring
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/part-of: k3slab-monitoring
+    spec:
+      serviceAccountName: prometheus
+      nodeSelector:
+        k3slab.io/role: platform
+      # Time to flush the write-ahead log and close the head block on SIGTERM.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.16.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=7d
+            - --storage.tsdb.retention.size=2GB
+            - --web.listen-address=0.0.0.0:9090
+          env:
+            - name: GOMEMLIMIT
+              value: 640MiB
+          ports:
+            - name: http
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+              readOnly: true
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http

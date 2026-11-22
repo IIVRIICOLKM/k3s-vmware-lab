@@ -1,0 +1,90 @@
+# dcgm-exporter: GPU metrics (utilization, memory, power, temperature) of the RTX 3090 on gpu-host, from NVIDIA DCGM.
+# Image: nvcr.io/nvidia/k8s/dcgm-exporter 4.6.1-4.8.4 (DCGM 4.6.1 + exporter 4.8.4, released 2026-09-18). Version 4.9.0
+# (2026-11-06) renames the default metrics and changes their units (percent -> 0..1 ratio, MiB -> bytes), so the
+# dashboards are written for 4.8.4's names; move to 4.9.0 together with the dashboards.
+#
+# It does NOT ask for the GPU. The pod has no `nvidia.com/gpu` request or limit, so the device plugin does not count it
+# and the single GPU stays free for the inference pod or a training Job. What makes the GPU visible inside the pod is
+# runtimeClassName `nvidia` plus the image's own NVIDIA_VISIBLE_DEVICES=all (the NVIDIA runtime then mounts the device
+# files and libnvidia-ml; the host's /etc/nvidia-container-runtime/config.toml keeps the default that accepts that
+# variable). It only READS the GPU through NVML/DCGM, so it does not slow down GPU workloads measurably.
+# No `-k` (Kubernetes pod mapping): it would need the kubelet pod-resources socket, and with one GPU nothing needs
+# per-pod GPU attribution. Default counters (etc/default-counters.csv of 4.8.4): no profiling (DCP) fields, so the
+# SYS_ADMIN capability is not needed either.
+#
+# [한국어 설명] gpu-host의 GPU 지표(사용률, 메모리, 전력, 온도). gpu-host에만 1개(DaemonSet + nodeSelector).
+#   - nvidia.com/gpu를 요청하지 않는다. 그래서 GPU가 1장뿐이어도 추론·학습 파드와 동시에 뜰 수 있다.
+#     GPU를 보이게 하는 것은 runtimeClass nvidia + 이미지 기본 환경변수 NVIDIA_VISIBLE_DEVICES=all이다.
+#   - 수집 간격 1초(-c 1000). 기본값은 30초라서 20~60초짜리 부하 시험에서는 값이 거의 안 변해 보인다.
+#   - 4.9.0은 지표 이름·단위가 바뀐다(예: 사용률 % → 0~1 비율). 대시보드는 4.8.4 이름 기준이다.
+#   - 메모리: requests 128Mi / limits 768Mi. gpu-host는 물리 PC라 VM보다 여유가 있다.
+#     배포 뒤 실측 작업 집합이 382Mi(1분)에서 439Mi(16분)로 늘어 처음 limit 512Mi의 86%였다(2026-11-22). limit만 올렸다.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dcgm-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: dcgm-exporter
+    app.kubernetes.io/version: 4.8.4
+    app.kubernetes.io/part-of: k3slab-monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dcgm-exporter
+        app.kubernetes.io/version: 4.8.4
+        app.kubernetes.io/part-of: k3slab-monitoring
+    spec:
+      automountServiceAccountToken: false
+      runtimeClassName: nvidia
+      nodeSelector:
+        k3slab.io/role: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: dcgm-exporter
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:4.6.1-4.8.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - -c
+            - "1000"
+          env:
+            # Already the image default; stated here so the intent (all GPUs visible, no device plugin request) is
+            # visible in the manifest. `utility` = NVML, `compute` = what DCGM's GPU enumeration needs.
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+          ports:
+            - name: metrics
+              containerPort: 9400
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false

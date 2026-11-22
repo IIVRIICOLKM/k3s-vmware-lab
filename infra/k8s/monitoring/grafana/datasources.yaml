@@ -1,0 +1,45 @@
+# Grafana data sources (provisioned; mounted from the ConfigMap grafana-provisioning).
+#
+# [한국어 설명] 데이터소스 둘.
+#   prometheus   : 지표(추론 워커, GPU, 노드, 파드). 기본 데이터소스.
+#   mysql-k3slab : 작업 상태(jobs, job_events 테이블). 읽기 전용 계정 k3slab_ro만 쓴다.
+#                  이 계정은 scripts/monitoring-deploy.sh가 만든다(SELECT 권한만, jobs·job_events 두 테이블만, 동시 접속 5개).
+#                  mysqld-exporter 대신 이 방식을 고른 이유는 README.md "작업 상태" 절에 있다.
+#                  비밀번호는 환경변수 MYSQL_RO_PASSWORD(Secret grafana-secrets)에서 읽는다. 이 파일에는 없다.
+#   주소는 짧은 서비스 이름(prometheus, mysql.k3slab-system)으로 적는다. 파드의 DNS 검색 목록 끝에 localdomain이 붙어 있고
+#   (VM의 resolv.conf를 물려받음) 그 상위 DNS(172.16.133.2)가 답하지 않아서, 점이 4개인 긴 이름
+#   (prometheus.monitoring.svc.cluster.local)은 약 10초를 기다리다 실패한다(2026-11-22 클러스터에서 실측).
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    # Short service name on purpose: the pods' search list ends in `localdomain` (copied from the VM's resolv.conf) and
+    # the upstream DNS 172.16.133.2 does not answer for it, so a name with 4 dots (the full .svc.cluster.local form)
+    # waits ~10 s and then fails. `prometheus` is found by the first search suffix (monitoring.svc.cluster.local).
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      # Same as the global scrape interval; Grafana derives $__rate_interval from it.
+      timeInterval: 15s
+  - name: MySQL (k3slab jobs)
+    uid: mysql-k3slab
+    type: mysql
+    access: proxy
+    # Same reason as above: `<service>.<namespace>` is found by the second search suffix (svc.cluster.local).
+    url: mysql.k3slab-system:3306
+    user: k3slab_ro
+    editable: false
+    jsonData:
+      database: k3slab
+      maxOpenConns: 3
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      # Session time zone UTC: MySQL stores TIMESTAMP as UTC, and Grafana reads text datetimes as UTC. Without this a
+      # server whose time zone is not UTC would show every `updated_at` shifted by its offset.
+      timezone: "+00:00"
+    secureJsonData:
+      password: ${MYSQL_RO_PASSWORD}

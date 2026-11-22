@@ -1,0 +1,139 @@
+# Grafana (dashboards) on worker-cpu-1 (role=platform). Data source and dashboards are provisioned from ConfigMaps, so a
+# fresh pod already has everything: nothing is clicked together by hand and nothing needs a PVC (state lives in an
+# emptyDir; a restart only loses user preferences and sessions).
+# Image: docker.io/grafana/grafana 13.3.1 (released 2026-11-10).
+#
+# [한국어 설명] 대시보드 화면. worker-cpu-1(role=platform)에 1개.
+#   - 데이터소스 둘(Prometheus, MySQL 읽기 전용)과 대시보드 세 개를 ConfigMap으로 자동 등록한다.
+#     그래서 PVC가 필요 없다(emptyDir). 파드를 다시 띄워도 같은 화면이 다시 생긴다.
+#   - 비밀번호는 Secret grafana-secrets에서 환경변수로 받는다(scripts/monitoring-deploy.sh가 만든다). Git에는 없다.
+#   - 밖으로 열지 않는다(ClusterIP). 보려면: kubectl -n monitoring port-forward svc/grafana 3000:3000
+#   - 메모리: requests 192Mi / limits 512Mi. 배포 뒤 실측 작업 집합이 약 335Mi로 처음 limit 384Mi의 87%였다(2026-11-22).
+#     OOMKilled를 피하려고 limit만 512Mi로 올렸다. requests는 그대로다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: k3slab-monitoring
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/part-of: k3slab-monitoring
+    spec:
+      nodeSelector:
+        k3slab.io/role: platform
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: docker.io/grafana/grafana:13.3.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secrets
+                  key: grafana-admin-password
+            # Read by grafana/datasources.yaml as ${MYSQL_RO_PASSWORD}.
+            - name: MYSQL_RO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secrets
+                  key: mysql-ro-password
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            # No outbound calls from a lab cluster: no usage reports, update checks, news feed or plugin downloads.
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+            - name: GF_NEWS_NEWS_FEED_ENABLED
+              value: "false"
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: "true"
+            - name: GF_LOG_MODE
+              value: console
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana-dashboards
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: provisioning
+          configMap:
+            name: grafana-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  selector:
+    app.kubernetes.io/name: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

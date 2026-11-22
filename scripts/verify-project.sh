@@ -102,6 +102,20 @@ required=(
   infra/k8s/labs/20-echo-api.yaml
   infra/k8s/labs/21-load-client.yaml
   infra/k8s/labs/30-restart-demo.yaml
+  infra/k8s/monitoring/README.md
+  infra/k8s/monitoring/dashboards/k3slab-inference.json
+  infra/k8s/monitoring/dashboards/k3slab-nodes.json
+  infra/k8s/monitoring/dashboards/k3slab-training.json
+  infra/k8s/monitoring/dcgm-exporter.yaml
+  infra/k8s/monitoring/grafana.yaml
+  infra/k8s/monitoring/grafana/dashboards.yaml
+  infra/k8s/monitoring/grafana/datasources.yaml
+  infra/k8s/monitoring/kube-state-metrics.yaml
+  infra/k8s/monitoring/kustomization.yaml
+  infra/k8s/monitoring/namespace.yaml
+  infra/k8s/monitoring/node-exporter.yaml
+  infra/k8s/monitoring/prometheus.yaml
+  infra/k8s/monitoring/prometheus/prometheus.yml
   infra/k8s/mysql-schema.sql
   infra/k8s/mysql.yaml
   infra/k8s/nvidia-device-plugin.yaml
@@ -135,6 +149,8 @@ required=(
   scripts/k3s-lab.sh
   scripts/lib/common.sh
   scripts/lib/pinned-versions.env
+  scripts/monitoring-deploy.sh
+  scripts/monitoring-test.sh
   scripts/mysql-deploy.sh
   scripts/preflight.sh
   scripts/provider-smoke-test.sh

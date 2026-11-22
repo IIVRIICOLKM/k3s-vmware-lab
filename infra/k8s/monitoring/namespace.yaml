@@ -1,0 +1,8 @@
+# Namespace for everything in infra/k8s/monitoring. Deleting it (scripts/monitoring-deploy.sh remove) removes the stack
+# and its PVC; the cluster-scoped ClusterRoles/Bindings are removed by the same script.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: k3slab-monitoring

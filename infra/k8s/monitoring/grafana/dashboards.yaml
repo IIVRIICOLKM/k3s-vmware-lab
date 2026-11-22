@@ -1,0 +1,17 @@
+# Grafana dashboard provider: loads every *.json under /var/lib/grafana-dashboards (the ConfigMap grafana-dashboards,
+# built from infra/k8s/monitoring/dashboards/*.json). Dashboards are read-only in the UI (allowUiUpdates false) so
+# the Git copy stays the source of truth; to change one, edit the JSON and run scripts/monitoring-deploy.sh.
+#
+# [한국어 설명] dashboards/*.json을 자동으로 불러오는 설정. 화면에서 고친 내용은 저장되지 않는다(Git의 JSON이 기준).
+#   JSON을 고치고 monitoring-deploy.sh를 다시 실행하면 약 1분 안에 반영된다.
+apiVersion: 1
+providers:
+  - name: k3slab
+    orgId: 1
+    folder: k3s-vmware-lab
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana-dashboards

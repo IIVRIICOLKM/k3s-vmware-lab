@@ -1,0 +1,122 @@
+# node-exporter: CPU, memory, disk and load of every node (k3s-server, worker-cpu-1, worker-cpu-2, gpu-host).
+# One pod per node (DaemonSet). It runs on the pod network, NOT on the host network: Prometheus reaches it over the
+# flannel overlay like any other pod, so no host firewall rule is needed (gpu-host's ufw only allows kubelet 10250,
+# VXLAN 8472 and the pod/service ranges). CPU and memory come from /proc and /sys, which are mounted from the host.
+# Only the collectors the dashboards use are enabled, which keeps each node's series count (and memory) small.
+# Image: quay.io/prometheus/node-exporter v1.13.1 (released 2026-11-19).
+#
+# [한국어 설명] 노드마다 1개(DaemonSet). 호스트 네트워크를 쓰지 않는다 → gpu-host 방화벽(ufw)을 건드릴 필요가 없다.
+#   호스트의 /proc, /sys, /(읽기 전용)를 마운트해서 CPU·메모리·디스크는 호스트 값을 읽는다.
+#   필요한 수집기만 켜서(--collector.disable-defaults) 시계열 수와 메모리를 줄인다.
+#   gpu-host의 taint(nvidia.com/gpu=present:NoSchedule)도 견디도록 toleration을 모두 허용(Exists)한다.
+#   메모리: requests 32Mi / limits 64Mi (노드마다).
+#   SELinux: Rocky VM 3대는 SELinux가 켜져 있어서 기본 라벨(container_t)로는 호스트의 /proc/1/mountinfo를 못 읽는다
+#   ("open /host/proc/1/mountinfo: permission denied", 디스크 지표가 gpu-host 것만 나왔다. 2026-11-22 실측). 그래서 이 파드의
+#   SELinux 라벨만 spc_t로 둔다. 루트 권한·privileged는 쓰지 않고, 마운트는 읽기 전용, capability는 전부 뺀 그대로다.
+#   SELinux가 없는 gpu-host(Ubuntu)에서는 이 설정이 무시된다.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: node-exporter
+    app.kubernetes.io/version: 1.13.1
+    app.kubernetes.io/part-of: k3slab-monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: node-exporter
+        app.kubernetes.io/version: 1.13.1
+        app.kubernetes.io/part-of: k3slab-monitoring
+    spec:
+      automountServiceAccountToken: false
+      tolerations:
+        - operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: node-exporter
+          image: quay.io/prometheus/node-exporter:v1.13.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --web.listen-address=:9100
+            - --collector.disable-defaults
+            - --collector.cpu
+            - --collector.meminfo
+            - --collector.loadavg
+            - --collector.filesystem
+            - --collector.diskstats
+            - --collector.netdev
+            - --collector.stat
+            - --collector.vmstat
+            - --collector.uname
+            - --collector.time
+            - --collector.filefd
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/(kubelet|containerd|rancher)/.+)($|/)
+            - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+          ports:
+            - name: metrics
+              containerPort: 9100
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            seLinuxOptions:
+              type: spc_t
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: root
+              mountPath: /host/root
+              readOnly: true
+              mountPropagation: HostToContainer
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
