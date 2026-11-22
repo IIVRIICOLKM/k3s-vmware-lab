@@ -19,9 +19,16 @@ umask 077
 
 # --- 1) 주소·경로 설정 ---
 # 신뢰의 기준(서명 키·CHECKSUM·서명)은 항상 공식 서버에서 받고, 용량이 큰 ISO만 빠른 국내 미러에서 받는다.
-CHECKSUM_BASE_URL="https://download.rockylinux.org/pub/rocky/9/isos/x86_64"
+# [변경 2026-11-21] Rocky 9.9가 pub 경로로 올라오면서 9.8이 pub의 CHECKSUM 목록에서 빠져 "signed upstream SHA-256 is ''"로 실패했다.
+#   9.8은 공식 vault 경로(.../vault/rocky/9.8/...)로 옮겨졌으므로 CHECKSUM·서명(.asc)을 vault에서 받는다.
+#   서명 키 지문 검증(PIN_ROCKY_GPG_FINGERPRINT), gpgv 서명 검증, PIN_ROCKY_ISO_SHA256 비교는 그대로이고 달라진 것은 주소뿐이다.
+#   (서명 키 KEY_URL은 릴리스와 무관하게 pub 경로에 있으므로 그대로 둔다.)
+CHECKSUM_BASE_URL="https://dl.rockylinux.org/vault/rocky/9.8/isos/x86_64"
 # The Korean Rocky mirror is substantially faster from this host. Trust still comes from the official signed CHECKSUM;
 # override only the byte source with ROCKY_DOWNLOAD_BASE_URL when another mirror is preferable.
+# [참고 2026-11-21] ISO를 새로 받을 때 쓰는 주소(국내 미러)는 기준 경로가 아니라 "바이트 출처"일 뿐이고, 받은 파일은 위 서명된 해시로 검증된다.
+#   이 미러는 아직 pub 경로에 9.8을 두고 있어 그대로 둔다. 9.8이 사라져 404가 나면 아래처럼 공식 vault에서 받는다(HTTP 200 확인함).
+#   ROCKY_DOWNLOAD_BASE_URL=https://dl.rockylinux.org/vault/rocky/9.8/isos/x86_64 scripts/fetch-rocky-iso.sh
 DOWNLOAD_BASE_URL="${ROCKY_DOWNLOAD_BASE_URL:-https://mirror3.krfoss.org/rocky/9/isos/x86_64}"
 KEY_URL="https://dl.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-9"
 ISO="$LAB_ISO_DIR/$PIN_ROCKY_ISO_FILENAME"

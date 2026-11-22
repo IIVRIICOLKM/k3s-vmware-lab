@@ -58,6 +58,7 @@ required=(
   charts/k3slab-workload/values-infer.yaml
   charts/k3slab-workload/values-train.yaml
   charts/k3slab-workload/values.yaml
+  docs/plan-week11-capacity.md
   docs/plan-week13-verification.md
   docs/vmware-iac-handoff.md
   docs/vmware-workstation-iac-workflow.png
@@ -108,6 +109,7 @@ required=(
   infra/terraform/terraform.example.tfvars
   infra/terraform/variables.tf
   infra/terraform/versions.tf
+  scripts/capacity-report.sh
   scripts/cluster-apply.sh
   scripts/entry.sh
   scripts/fault-test.sh

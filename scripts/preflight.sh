@@ -123,7 +123,14 @@ check_eq "Workstation prefvmx.defaultVMPath" "$default_vm_dir" "$LAB_VM_DIR"
 echo "== Managed VMs and Workstation UI library"
 tf_state="$LAB_STATE_DIR/terraform/terraform.tfstate"
 if [[ -s "$tf_state" ]]; then
-  nodes=$("$REPO_ROOT/scripts/tf.sh" output -json nodes 2>/dev/null || true)
+  if [[ -d "$REPO_ROOT/infra/terraform/.terraform" ]]; then
+    nodes=$("$REPO_ROOT/scripts/tf.sh" output -json nodes 2>/dev/null || true)
+  else
+    # 새 작업 공간(새 clone·worktree)에는 .terraform이 없어서 tf.sh output이 실패한다. tf init은 entry.sh 5단계라
+    # 이 점검(3단계)보다 늦다. 그래서 state 파일의 output 값을 jq로 직접 읽는다 (읽기 전용, init 불필요).
+    info "infra/terraform/.terraform not initialised yet (entry.sh step 5); reading output 'nodes' from the state file"
+    nodes=$(jq -c '.outputs.nodes.value // empty' "$tf_state" 2>/dev/null || true)
+  fi
   if jq -e 'type == "object" and length > 0' <<<"$nodes" >/dev/null 2>&1; then
     inventory="$HOME/.vmware/inventory.vmls"
     while IFS=$'\t' read -r name vmx; do
