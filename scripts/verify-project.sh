@@ -58,6 +58,7 @@ required=(
   charts/k3slab-workload/values-infer.yaml
   charts/k3slab-workload/values-train.yaml
   charts/k3slab-workload/values.yaml
+  docs/plan-week13-verification.md
   docs/vmware-iac-handoff.md
   docs/vmware-workstation-iac-workflow.png
   docs/assets/iac-workflow.svg
@@ -109,6 +110,7 @@ required=(
   infra/terraform/versions.tf
   scripts/cluster-apply.sh
   scripts/entry.sh
+  scripts/fault-test.sh
   scripts/fetch-rocky-iso.sh
   scripts/golden-build.sh
   scripts/infer-bench.sh
