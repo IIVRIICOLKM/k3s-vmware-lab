@@ -1,7 +1,25 @@
-# 스크립트 단계별 흐름
+# 스크립트 흐름
 
-`scripts/entry.sh`가 순서대로 부르는 단계 스크립트가 각자 안에서 무엇을 하는지 정리한 문서다.
-그림 원본은 [`assets/script-flow-stages.svg`](assets/script-flow-stages.svg)이고, 각 단계의 번호는 `entry.sh`의 단계 번호와 같다.
+쉘 스크립트가 어떤 순서로 무엇을 하는지 그림 세 장으로 정리한 문서다.
+
+| 그림 | 내용 |
+|---|---|
+| [`assets/script-flow-entry.svg`](assets/script-flow-entry.svg) | `entry.sh` 한 번 실행의 전체 흐름 (9단계와 실패 처리) |
+| [`assets/script-flow-stages.svg`](assets/script-flow-stages.svg) | 그 9단계 스크립트 각각의 내부 흐름 |
+| [`assets/script-flow-ops.svg`](assets/script-flow-ops.svg) | `entry.sh`에 들어 있지 않고 필요할 때 직접 실행하는 스크립트 |
+
+## entry.sh 전체 흐름
+
+![entry.sh 전체 실행 흐름](assets/script-flow-entry.svg)
+
+- 맨 위 a~c는 단계에 들어가기 전에 하는 준비다: 인자 검사, 골든 이미지 버전 결정, Ansible venv 확인.
+- 1~9는 `entry.sh`의 단계 번호다. 색은 단계 묶음이다. 파랑은 호스트 준비(1~3), 보라는 이미지와 VM(4~7), 초록은 노드 구성(8~9)이다.
+- 3단계 사전 점검에서 `FAIL`이 하나라도 나오면 여기서 멈춘다. 4단계는 골든 이미지 폴더가 이미 있으면 건너뛴다.
+- 어느 단계에서든 실패하면 `FAILED at step N/9`를 출력하고 멈춘다. 원인을 고친 뒤 같은 명령을 다시 실행하면 끝난 단계는 건너뛰거나 변경 없이 통과한다.
+
+## 단계별 내부 흐름
+
+각 단계 스크립트가 안에서 무엇을 하는지 그린 그림이다. 각 단계의 번호는 `entry.sh`의 단계 번호와 같다.
 
 ![entry.sh 단계별 내부 흐름](assets/script-flow-stages.svg)
 
@@ -63,3 +81,18 @@
 
 - 모든 단계는 다시 실행해도 안전하다(멱등). 실패하면 원인만 고치고 `scripts/entry.sh`를 다시 실행한다.
 - 실패하면 `FAILED at step N/9: <실패한 명령>`이 출력되고, 완료된 단계는 건너뛰거나 변경 없이 통과한다.
+
+## 단독 실행 스크립트
+
+![단독 실행 스크립트 흐름](assets/script-flow-ops.svg)
+
+- `entry.sh`에 들어 있지 않고 필요할 때 직접 실행하는 스크립트다. 카드 하나가 스크립트 하나이고, 칩의 번호는 그 스크립트 안의 실행 순서다.
+- 오른쪽 위 표시는 쓰임새다.
+  - **새 이미지**: `image-build.sh`. 호스트 Docker 없이 클러스터 안 Kaniko로 빌드하고, 같은 태그가 있으면 빌드하지 않는다.
+  - **시험**: `k3s-lab.sh`, `train-resume-test.sh`, `infer-bench.sh`. 실습과 시험을 실행하고 결과를 `docs/labs/`에 보고서로 남긴다.
+  - **점검**: `provider-smoke-test.sh`, `vmware-modules.sh`, `verify-project.sh`. 도구를 올리거나 커널을 바꾼 뒤 확인하는 데 쓴다.
+- `infer-bench.sh`의 과부하 시험은 큐 20에 요청 300개를 동시 150개씩 보낸다.
+- 이 그림은 11/5 기준이다. 그 뒤에 추가된 스크립트는 아직 그리지 않았다. 각 파일 머리의 한글 주석에 흐름이 적혀 있다.
+  - 작업 DB: `mysql-deploy.sh`, `job.sh`, `job-db-test.sh`
+  - 추론 GPU 시험: `infer-gpu-bench.sh`
+  - 장애 실험: `fault-test.sh` (설계는 [`plan-week13-verification.md`](plan-week13-verification.md))
