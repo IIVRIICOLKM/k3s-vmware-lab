@@ -27,6 +27,7 @@ fi
 # --- 2) 필수 파일 목록 (저장소 최상위 기준 상대 경로) ---
 required=(
   .gitignore
+  Jenkinsfile
   README.md
   apps/infer/Dockerfile
   apps/infer/Makefile
@@ -102,6 +103,9 @@ required=(
   infra/k8s/labs/20-echo-api.yaml
   infra/k8s/labs/21-load-client.yaml
   infra/k8s/labs/30-restart-demo.yaml
+  infra/k8s/jenkins/README.md
+  infra/k8s/jenkins/ci-base.yaml
+  infra/k8s/jenkins/values.yaml
   infra/k8s/monitoring/README.md
   infra/k8s/monitoring/dashboards/k3slab-inference.json
   infra/k8s/monitoring/dashboards/k3slab-nodes.json
@@ -144,6 +148,16 @@ required=(
   scripts/infer-bench.sh
   scripts/infer-gpu-bench.sh
   scripts/image-build.sh
+  scripts/jenkins-check.sh
+  scripts/jenkins-ci-test.sh
+  scripts/jenkins-deploy.sh
+  scripts/jenkins-record.sh
+  scripts/jenkins-registry.sh
+  scripts/jenkins-run.sh
+  scripts/jenkins-stage-cpp.sh
+  scripts/jenkins-stage-helm.sh
+  scripts/jenkins-stage-python.sh
+  scripts/jenkins-stage-shell.sh
   scripts/job-db-test.sh
   scripts/job.sh
   scripts/k3s-lab.sh
@@ -161,6 +175,9 @@ required=(
   scripts/verify-project.sh
   scripts/vmware-modules.sh
   scripts/vmrest-start.sh
+  tests/train/test_datasets.py
+  tests/train/test_jobdb.py
+  tests/train/test_train.py
 )
 
 # --- 3) 존재 여부·빈 파일 검사 ---

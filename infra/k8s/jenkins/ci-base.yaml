@@ -1,0 +1,44 @@
+# Namespace "ci" and the permissions of the Jenkins agent pods (applied by scripts/jenkins-deploy.sh before the Helm release).
+# The agent pods run the pipeline (Jenkinsfile). The only thing they write to the cluster is the result ConfigMap
+# (ci-latest / ci-latest-local, written by scripts/jenkins-record.sh), so the ServiceAccount may only touch ConfigMaps in "ci".
+#
+# [한국어 설명] 네임스페이스 ci와 에이전트 파드의 권한.
+#   에이전트 파드(파이프라인이 도는 곳)가 클러스터에 쓰는 것은 결과 ConfigMap 하나뿐이다.
+#   그래서 ServiceAccount jenkins-agent는 ci 네임스페이스의 ConfigMap만 읽고 쓸 수 있다. 파드·Secret·다른 네임스페이스에는 권한이 없다.
+#   (컨트롤러의 권한은 Helm 차트가 따로 만든다: 에이전트 파드 생성·삭제)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci
+  labels:
+    k3slab.io/purpose: ci
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-agent
+  namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-agent-result
+  namespace: ci
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-agent-result
+  namespace: ci
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-agent
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jenkins-agent-result

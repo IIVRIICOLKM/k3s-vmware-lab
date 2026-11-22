@@ -1,0 +1,220 @@
+# Helm values for the official Jenkins chart (https://github.com/jenkinsci/helm-charts), release "jenkins" in namespace "ci".
+# Deployed by scripts/jenkins-deploy.sh, which pins the chart to version 5.13.3 (tarball SHA-256 checked) and first creates the
+# Secret jenkins-admin (random admin password, never in Git). Design notes and the reasons for each choice: infra/k8s/jenkins/README.md.
+#
+# [한국어 설명] 공식 Jenkins Helm 차트(5.13.3)에 넘기는 값. 기본값에서 바꾼 것만 적었다.
+#   배치: 컨트롤러는 worker-cpu-1(platform 노드), 빌드를 돌리는 에이전트 파드는 Jenkinsfile이 gpu-host로 보낸다.
+#   메모리가 빠듯하다(worker-cpu-1은 6GB를 레지스트리·MySQL과 나눠 쓰고, 이후 Argo CD·모니터링이 더해진다).
+#   그래서 힙을 512MB로 묶고 파드 한도를 1GiB로 잡았다. 사이드카(설정 자동 재적용)는 끈다.
+
+controller:
+  # 이미지는 고정 태그 (LTS 2.580.2, JDK 25). 차트 기본값은 pullPolicy: Always라서 IfNotPresent로 바꾼다.
+  image:
+    registry: docker.io
+    repository: jenkins/jenkins
+    tag: "2.580.2-jdk25"
+    pullPolicy: IfNotPresent
+
+  # 관리자 계정: Secret jenkins-admin (키 jenkins-admin-user / jenkins-admin-password)을 scripts/jenkins-deploy.sh가 만든다.
+  admin:
+    createSecret: false
+    existingSecret: jenkins-admin
+    userKey: jenkins-admin-user
+    passwordKey: jenkins-admin-password
+
+  # Jenkins 주소: 빌드 로그와 결과 기록(ci-result.json)의 링크가 클러스터 안 전체 이름으로 나온다.
+  #   (JCasC의 unclassified.location.url이 이 값으로 정해진다. 같은 키를 configScripts에서 또 쓰면 JCasC가 충돌 오류를 낸다)
+  jenkinsUrl: "http://jenkins.ci.svc.cluster.local:8080"
+
+  # 컨트롤러에서는 빌드를 돌리지 않는다 (차트 기본값 numExecutors: 0 그대로). 모든 빌드는 에이전트 파드에서.
+  numExecutors: 0
+
+  # 힙 256~512MB. SerialGC는 작은 힙에서 메모리를 덜 쓴다. 나머지(메타스페이스, 스레드, 코드 캐시)는 파드 한도 안에서 쓴다.
+  javaOpts: "-Xms256m -Xmx512m -XX:+UseSerialGC"
+
+  # 컨트롤러 파드의 자원 (2단계 승인 대상): 요청 CPU 250m / 메모리 768Mi, 한도 CPU 1 / 메모리 1Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # 플러그인을 내려받는 init 컨테이너 (jenkins-plugin-cli, Java). 시작할 때만 잠깐 쓴다 (컨트롤러보다 먼저 끝난다).
+  #   플러그인 목록 파일(plugin-versions.json, 약 24MB)을 읽는 데 힙이 필요하다. 힙을 정하지 않으면 JVM이 한도의
+  #   25%(768Mi일 때 192MB)만 써서 "OutOfMemoryError: Java heap space"로 죽고 CrashLoopBackOff가 된다 (2026-11-22 첫 배포에서 겪음).
+  #   그래서 힙을 512MB로 정하고 한도를 1Gi로 올렸다. 요청(256Mi)은 그대로라 스케줄링에는 영향이 없다.
+  initContainerEnv:
+    - name: JAVA_TOOL_OPTIONS
+      value: "-Xmx512m"
+  initContainerResources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  # 플러그인은 의존 플러그인까지 전부 정확한 버전으로 고정한다 (아래 목록 = 잠금 목록, 73개).
+  #   처음에는 직접 쓰는 7개만 적고 의존 플러그인은 최소 요구 버전으로 받게 했는데(installLatestPlugins: false), 첫 배포(2026-11-22)에서
+  #   pipeline-model-extensions 2.2277이 요구하는 pipeline-model-api 2.2277·workflow-job 1546·pipeline-stage-step 322보다
+  #   낮은 버전이 같이 설치되어 Declarative Pipeline과 workflow-aggregator가 로드에 실패했다 (파이프라인이 단계 없이 SUCCESS로 끝남).
+  #   그래서 Jenkins 2.580.2에서 실제로 한 번 돌려 보며 모두 로드된 조합을 그대로 고정했다 (2026-11-21 updates.jenkins.io 기준).
+  #   갱신하려면: 목록을 새로 만들어 Jenkins 2.580.2로 파이프라인을 돌려 확인한 뒤 통째로 바꾼다. 하나만 올리지 않는다.
+  installPlugins:
+    # 직접 쓰는 플러그인 (7개)
+    - configuration-as-code:2147.v8a_8d38668c72
+    - git:5.11.0
+    - job-dsl:3732.v9a_c49a_61a_313
+    - kubernetes:4560.vc25b_83890c34
+    - pipeline-stage-view:2.41
+    - timestamper:1.30
+    - workflow-aggregator:608.v67378e9d3db_1
+    # 의존 플러그인 (66개)
+    - antisamy-markup-formatter:173.v680e3a_b_69ff3
+    - apache-httpcomponents-client-4-api:4.5.14-269.vfa_2321039a_83
+    - asm-api:9.11.1-226.vff833a_e4c58e
+    - authentication-tokens:1.144.v5ff4a_5ec5c33
+    - bootstrap5-api:5.3.8-1048.va_c299057e35c
+    - bouncycastle-api:2.30.1.86.2-310.v4655f6742752
+    - branch-api:2.1303.v9f3b_95dc329d
+    - caffeine-api:3.3.1-214.v18eb_56b_34920
+    - cloudbees-folder:6.1107.v31f8955765c8
+    - commons-lang3-api:3.21.0-122.v6a_ea_4fd34049
+    - commons-text-api:1.15.0-218.va_61573470393
+    - credentials-binding:728.v902a_273b_8947
+    - credentials:1514.vb_01eb_014e7d4
+    - display-url-api:2.217.va_6b_de84cc74b_
+    - durable-task:686.v80ff80875b_82
+    - font-awesome-api:7.3.1-1013.v0835a_879ec6d
+    - git-client:6.7.1
+    - gson-api:2.15.0-212.v085f60a_8093b_
+    - instance-identity:203.v15e81a_1b_7a_38
+    - ionicons-api:94.vcc3065403257
+    - jackson-annotations2-api:2.23-28.v3db_d0f5f2387
+    - jackson2-api:2.22.4-449.v4ee9f4ec4123
+    - jakarta-activation-api:2.1.4-1
+    - jakarta-mail-api:2.1.5-1
+    - jakarta-xml-bind-api:4.0.9-19.v2b_a_5b_44d9a_1c
+    - javax-activation-api:1.2.0-8
+    - jaxb:2.3.9-143.v5979df3304e6
+    - joda-time-api:2.15.1-211.ve499f52b_da_33
+    - json-api:20260814-226.v20f9685d642c
+    - kubernetes-client-api:7.3.1-256.v788a_0b_787114
+    - kubernetes-credentials:207.v492f58828b_ed
+    - mailer:534.v1b_36f5864073
+    - metrics:4.2.37-494.v06f9a_939d33a_
+    - mina-sshd-api-common:2.20.1-199.v8ce76b_c93542
+    - mina-sshd-api-core:2.20.1-199.v8ce76b_c93542
+    - okhttp-api:5.5.0-242.v1482d48d3ea_3
+    - pipeline-build-step:605.v00486e8f4b_3e
+    - pipeline-graph-analysis:254.v0f63a_a_447dca_
+    - pipeline-groovy-lib:822.vc95f70dea_db_7
+    - pipeline-input-step:568.v0c9db_2652741
+    - pipeline-milestone-step:152.v6e22b_8cfc66c
+    - pipeline-model-api:2.2293.v6e7193cec599
+    - pipeline-model-definition:2.2293.v6e7193cec599
+    - pipeline-model-extensions:2.2293.v6e7193cec599
+    - pipeline-rest-api:2.41
+    - pipeline-stage-step:345.va_96187909426
+    - pipeline-stage-tags-metadata:2.2293.v6e7193cec599
+    - plain-credentials:199.v9f8e1f741799
+    - plugin-util-api:7.1403.vd380b_c42e90c
+    - prism-api:1.30.0-741.v034eb_0b_0a_a_fa_
+    - scm-api:728.vc30dcf7a_0df5
+    - script-security:1436.v1082791135e4
+    - snakeyaml-api:2.7-152.vc672728cf536
+    - ssh-credentials:372.va_250881b_08cd
+    - structs:362.va_b_695ef4fdf9
+    - variant:70.va_d9f17f859e0
+    - woodstox-core-api:7.3.0-16.v017f30ed004c
+    - workflow-api:1429.v7a_1b_efb_a_f7c5
+    - workflow-basic-steps:1129.v60e3c7e6654d
+    - workflow-cps:4403.v471713a_cea_19
+    - workflow-durable-task-step:1479.v56e587f413a_7
+    - workflow-job:1624.ve973eb_34e031
+    - workflow-multibranch:842.v3a_b_59b_57b_e6e
+    - workflow-scm-step:487.v41313a_96b_65d
+    - workflow-step-api:724.v538c2362b_dfb_
+    - workflow-support:1035.v6a_23b_e298a_5d
+  installLatestPlugins: false
+
+  # 에이전트는 WebSocket으로 접속한다 → 에이전트 전용 포트(50000)와 Service가 필요 없다.
+  agentListenerEnabled: false
+
+  # JCasC 변경은 helm upgrade로 반영한다(파드 재시작). 자동 재적용 사이드카는 메모리만 쓰므로 끈다.
+  sidecars:
+    configAutoReload:
+      enabled: false
+
+  # 시작이 느린 작은 VM을 고려해 startupProbe를 5분까지 기다린다 (차트 기본 2분)
+  probes:
+    startupProbe:
+      failureThreshold: 30
+      httpGet:
+        path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 5
+
+  # worker-cpu-1 = k3slab.io/role=platform (레지스트리, MySQL과 같은 노드)
+  nodeSelector:
+    k3slab.io/role: platform
+
+  # helm test 파드는 쓰지 않는다
+  testEnabled: false
+
+  # Jenkins 설정은 코드로 (JCasC). 관리자 계정과 Kubernetes 클라우드는 차트 기본 설정이 만든다.
+  JCasC:
+    defaultConfig: true
+    security:
+      apiToken:
+        creationOfLegacyTokenEnabled: false
+        tokenGenerationOnCreationEnabled: false
+        usageStatisticsEnabled: false
+    configScripts:
+      # 화면 상단 안내
+      ci-settings: |
+        jenkins:
+          systemMessage: "k3s-vmware-lab CI: C++ build, Python/shell/Helm checks, then Kaniko image build. Managed as code (infra/k8s/jenkins)."
+      # 운영 작업: GitHub develop을 5분마다 확인해(폴링) 바뀌었으면 저장소 최상위 Jenkinsfile을 실행한다.
+      #   저장소는 공개라 인증이 필요 없다. 클러스터가 NAT 안에 있어 GitHub 웹훅(들어오는 연결)은 쓸 수 없어서 폴링한다.
+      #   develop에 Jenkinsfile이 올라가기 전에는 이 작업이 "Jenkinsfile을 찾을 수 없음"으로 실패한다 (시험은 k3slab-ci-local로).
+      ci-jobs: |
+        jobs:
+          - script: >
+              pipelineJob('k3slab-ci') {
+                description('CI for k3s-vmware-lab: checks, then Kaniko image build. Source: GitHub develop (Jenkinsfile at the repo root).')
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote { url('https://github.com/IIVRIICOLKM/k3s-vmware-lab.git') }
+                        branch('*/develop')
+                      }
+                    }
+                    scriptPath('Jenkinsfile')
+                    lightweight(true)
+                  }
+                }
+                triggers { scm('H/5 * * * *') }
+              }
+
+# 에이전트 파드는 Jenkinsfile 안의 파드 정의(yaml)로 만든다. 차트의 기본 에이전트 템플릿은 쓰지 않는다.
+agent:
+  enabled: false
+  websocket: true
+  # 큰 이미지(PyTorch 3.3GB)를 처음 받을 때를 위해 파드 대기 시간을 30분으로
+  waitForPodSec: 1800
+  # 동시에 뜨는 에이전트 파드 수 상한 (한 번에 빌드 하나 + 여유)
+  containerCap: 4
+
+# 컨트롤러 데이터(/var/jenkins_home): 플러그인, 작업 설정, 빌드 기록. worker-cpu-1 디스크의 local-path PVC. 2단계 승인 대상: 5Gi
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 5Gi
+
+# 차트가 만드는 RBAC(컨트롤러가 ci 네임스페이스에서 에이전트 파드를 만들고 지우는 권한)는 기본값 그대로 쓴다.
+rbac:
+  create: true
+  readSecrets: false
